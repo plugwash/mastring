@@ -1,3 +1,57 @@
+//! MAString, a string type designed to minimise memory allocations.
+//!
+//! This crate provides two types, MAByteString stores arbitrary
+//! sequences of bytes, while MAString stores valid UTF-8.
+//!
+//! There are a number of reference-counted string types for rust,
+//! However, these commonly require memory allocation when converting
+//! From a std::String, which means adopting them can actually
+//! memory allocator calls.
+//!
+//! A MAString or MABytestring is four pointers in size, and can be in one of
+//! five modes, the mode can be checked through the "mode" method.
+//! which returns a string representing the current mode.
+//! 
+//! There are five possible modes.
+//! * Short string ("short"): the string data is stored entirely
+//!   within the MAString object.
+//! * Static string ("static"): the string stores a pointer to a
+//!   string with static lifetime
+//! * Uniquely owned string ("static"): the string stores a pointer to a
+//!   string that is uniquely owned by the current MAString object.
+//! * Reference counted string with inline control block  ("cbinline"):
+//!   the string stores a pointer to a reference counted string,
+//! * Reference counted string with seperate control block  ("cbowned"):
+//!   the string stores a pointer to a reference counted string,
+//!
+//! A uniquely owned MAString will be converted to one with shared
+//! ownership, and a seperate control block by Clone calls. This
+//! means repeatedly cloning a string will result in at-most
+//! a single memory allocation.
+//!
+//! MAStrings are represented as a union. The short string variant
+//! stores string data and a single byte length. 0x80 is added to
+//! the length of a short string to distinguish it from a long 
+//! string.
+//!
+//! The long string variant stores a pointer, length, "capacity"
+//! and control block pointer, the "capacity" includes space
+//! used to store an inline control block if-any.
+//!
+//! The most significant byte of the long string length shares
+//! A memory location with the short string length. Since the
+//! long length field is always less than isize::max and the 
+//! short length field is always greater than or equal to 0x80,
+//! this allows short and long strings to be distinguished.  The control
+//! block pointer is stored as an atomic pointer, to allow a
+//! uniquely owned string to be converted to a shared ownership
+//! string by the clone function.
+//!
+//! The control block is an atomic usize, with the lower
+//! bit used to distinguish between seperately owned, and inline
+//! control blocks, and the remaining bits used as a reference
+//! count.
+
 #![no_std]
 use core::sync::atomic::AtomicPtr;
 use core::sync::atomic::AtomicUsize;
@@ -46,6 +100,7 @@ struct InnerShort {
     len: u8,
 }
 
+///
 #[repr(C)]
 pub union MAByteString {
     short: InnerShort,
@@ -53,10 +108,16 @@ pub union MAByteString {
 }
 
 impl MAByteString {
-    const fn new() -> Self {
+    /// Creates a new MAByteString.
+    /// This will not allocate
+    pub const fn new() -> Self {
         MAByteString { short: InnerShort { data: [0; shortlen] , len: 0x80 } }
     }
 
+    /// Creates a MAByteString from a slice.
+    /// This will allocate if the string cannot be stored as a short string,
+    /// the resulting string will be in shared ownership mode with an inline
+    /// control block, so cloning will not result in further allocations.
     pub fn from_slice(s: &[u8]) -> Self {
         let len = s.len();
         if len <= shortlen {
@@ -73,6 +134,16 @@ impl MAByteString {
         }
     }
 
+    /// create a MABytestring from a Vec.
+    /// This will not allocate.
+    /// If the string can be represented as a  short string then it will be stored
+    /// as one and the memory owned by the
+    /// Vec will be freed. Otherwise if the vec has sufficient free storage
+    /// to store an inline control block, then the memory owned by the vec will
+    /// be used to createa shared ownership MAString with an inline control block.
+    /// if neither of those are possible, then the MAString will have unique
+    /// ownership, until it is first Cloned, at which point it will switch to
+    /// shared ownership with an external control block. 
     pub fn from_vec(mut v: Vec<u8>) -> Self {
         let len = v.len();
         if len <= shortlen {
@@ -101,17 +172,26 @@ impl MAByteString {
         }
     }
 
-    pub fn from_static(s: &'static [u8]) -> Self {
+    /// Create a MAByteString from a static reference
+    /// This function will not allocate, and neither wil
+    /// Clones of the MAString thus created.
+    pub const fn from_static(s: &'static [u8]) -> Self {
         let len = s.len();
         if len <= shortlen {
             let mut data : [u8; shortlen] = [0; shortlen];
-            data[0..len].copy_from_slice(&s);
+            let mut i = 0;
+            while i < len {
+                 data[i] = s[i];
+                 i += 1;
+            }
+            //data[0..len].copy_from_slice(&s); // doesn't work in const fn
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
             MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: 0, ptr: s.as_ptr() as *mut u8, cbptr: AtomicPtr::new(ptr::null_mut()) }) }
         }
     }
 
+    /// Return the current mode of the MAByteString (for testing/debugging)
     pub fn getMode(&self) -> &'static str {
         unsafe {
             let len = self.long.len;
@@ -208,22 +288,41 @@ pub struct MAString {
 }
 
 impl MAString {
-    const fn new() -> Self {
+    /// Creates a new MAByteString.
+    pub const fn new() -> Self {
         MAString { inner: MAByteString::new() }
     }
 
+    /// Creates a MAByteString from a slice.
+    /// This will allocate if the string cannot be stored as a short string,
+    /// the resulting string will be in shared ownership mode with an inline
+    /// control block, so cloning will not result in further allocations.
     pub fn from_slice(s: &str) -> Self {
         MAString { inner: MAByteString::from_slice(s.as_bytes()) }
     }
 
+    /// create a MAString from a std::String.
+    /// This will not allocate.
+    /// If the string can be represented as a  short string then it will be stored
+    /// as one and the memory owned by the
+    /// Vec will be freed. Otherwise if the vec has sufficient free storage
+    /// to store an inline control block, then the memory owned by the vec will
+    /// be used to createa shared ownership MAString with an inline control block.
+    /// if neither of those are possible, then the MAString will have unique
+    /// ownership, until it is first Cloned, at which point it will switch to
+    /// shared ownership with an external control block. 
     pub fn from_string(mut s: String) -> Self {
         MAString { inner: MAByteString::from_vec(s.into_bytes()) }
     }
 
-    pub fn from_static(s: &'static str) -> Self {
+    /// Create a MAByteString from a static reference
+    /// This function will not allocate, and neither wil
+    /// Clones of the MAString thus created.
+    pub const fn from_static(s: &'static str) -> Self {
         MAString { inner: MAByteString::from_static(s.as_bytes()) }
     }
 
+    /// Return the current mode of the MAByteString (for testing/debugging)
     pub fn getMode(&self) -> &'static str {
         self.inner.getMode()
     }
