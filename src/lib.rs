@@ -66,8 +66,9 @@ impl MAByteString {
         } else {
             let mask = align_of::<AtomicUsize>() - 1;
             let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
+            //println!("len:{len} veccap:{veccap}");
             let mut v = Vec::with_capacity(veccap);
-            v.copy_from_slice(s);
+            v.extend_from_slice(s);
             MAByteString::from_vec(v)
         }
     }
@@ -91,7 +92,7 @@ impl MAByteString {
                 let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
                 let cbrequired = cbstart + size_of::<AtomicUsize>();
                 let mut cbptr : * mut AtomicUsize = ptr::null_mut();
-                if cbrequired < cap {
+                if cbrequired <= cap {
                     cbptr = ptr.add(cbstart) as * mut AtomicUsize;
                     *cbptr = AtomicUsize::new(3);
                 }
@@ -201,6 +202,7 @@ impl Deref for MAByteString {
    }
 }
 
+#[derive(Clone)]
 pub struct MAString {
     inner: MAByteString,
 }
@@ -219,7 +221,7 @@ impl MAString {
     }
 
     pub fn from_static(s: &'static str) -> Self {
-        MAString { inner: MAByteString::from_slice(s.as_bytes()) }
+        MAString { inner: MAByteString::from_static(s.as_bytes()) }
     }
 
     pub fn getMode(&self) -> &'static str {
