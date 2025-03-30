@@ -291,12 +291,12 @@ pub struct MAString {
 }
 
 impl MAString {
-    /// Creates a new MAByteString.
+    /// Creates a new MAString.
     pub const fn new() -> Self {
         MAString { inner: MAByteString::new() }
     }
 
-    /// Creates a MAByteString from a slice.
+    /// Creates a MAString from a slice.
     /// This will allocate if the string cannot be stored as a short string,
     /// the resulting string will be in shared ownership mode with an inline
     /// control block, so cloning will not result in further allocations.
