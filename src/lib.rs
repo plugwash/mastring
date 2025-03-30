@@ -20,7 +20,7 @@
 //!   within the MAString object.
 //! * Static string ("static"): the string stores a pointer to a
 //!   string with static lifetime
-//! * Uniquely owned string ("static"): the string stores a pointer to a
+//! * Uniquely owned string ("unique"): the string stores a pointer to a
 //!   string that is uniquely owned by the current MAString object.
 //! * Reference counted string with inline control block  ("cbinline"):
 //!   the string stores a pointer to a reference counted string,
@@ -39,7 +39,8 @@
 //!
 //! The long string variant stores a pointer, length, "capacity"
 //! and control block pointer, the "capacity" includes space
-//! used to store an inline control block if-any.
+//! used to store an inline control block if-any and is set
+//! to zero to indicate a static string.
 //!
 //! The most significant byte of the long string length shares
 //! A memory location with the short string length. Since the
