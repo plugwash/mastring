@@ -6,7 +6,10 @@
 //! There are a number of reference-counted string types for rust,
 //! However, these commonly require memory allocation when converting
 //! From a std::String, which means adopting them can actually
-//! memory allocator calls.
+//! increase memory allocator calls.
+//!
+//! This crate attempts to solve that, it is currently at the alpha
+//! stage and has only been very lightly tested.
 //!
 //! A MAString or MABytestring is four pointers in size, and can be in one of
 //! five modes, the mode can be checked through the "mode" method.
