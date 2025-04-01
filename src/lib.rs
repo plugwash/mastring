@@ -110,6 +110,9 @@ pub union MAByteString {
     short: InnerShort,
     long: ManuallyDrop<InnerLong>,
 }
+unsafe impl Send for MAByteString {}
+unsafe impl Sync for MAByteString {}
+
 
 impl MAByteString {
     /// Creates a new MAByteString.

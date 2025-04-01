@@ -1,4 +1,8 @@
 use mastring::MAString;
+use std::sync::Mutex;
+
+static globalstring : Mutex<MAString> = Mutex::new(MAString::from_static("global string"));
+
 fn main() {
     let foo = MAString::from_static("hello");
     println!("{} {}",foo,foo.getMode());
