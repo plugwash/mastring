@@ -67,6 +67,7 @@ use core::mem;
 use core::mem::align_of;
 use core::ptr;
 use core::ops::Deref;
+use core::ops::DerefMut;
 use core::slice;
 
 extern crate alloc;
@@ -90,6 +91,46 @@ struct InnerLong {
     cbptr: AtomicPtr<AtomicUsize>,
     #[cfg(target_endian="little")]
     len: usize,
+}
+
+impl InnerLong {
+    #[inline]
+    fn from_vec(mut v: Vec<u8>, allowcb: bool) -> ManuallyDrop<Self> {
+        // it would be nice to use into_raw_parts here, but it's unstable.
+        let len = v.len();
+        let cap = v.capacity();
+        let ptr = v.as_mut_ptr();
+        mem::forget(v);
+        let mut cbptr : * mut AtomicUsize = ptr::null_mut();
+        if allowcb {
+            unsafe {
+                //check if we have room for a control block.
+                //math wont overflow because a vec is limited to isize,
+                //which has half the range of usize.
+                let end = ptr.add(len);
+                let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
+                let cbrequired = cbstart + size_of::<AtomicUsize>();
+                if cbrequired <= cap {
+                    cbptr = ptr.add(cbstart) as * mut AtomicUsize;
+                    *cbptr = AtomicUsize::new(3);
+                }
+            }
+        }
+        ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) })
+    }
+
+    #[inline]
+    fn from_slice(s: &[u8], allowcb: bool) -> ManuallyDrop<Self> {
+        let len = s.len();
+        let mask = align_of::<AtomicUsize>() - 1;
+        let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
+        //println!("len:{len} veccap:{veccap}");
+        let mut v = Vec::with_capacity(veccap);
+        v.extend_from_slice(s);
+        Self::from_vec(v,allowcb)
+    }
+
+
 }
 
 const shortlen : usize = size_of::<InnerLong>()-1;
@@ -132,14 +173,10 @@ impl MAByteString {
             data[0..len].copy_from_slice(&s);
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            let mask = align_of::<AtomicUsize>() - 1;
-            let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
-            //println!("len:{len} veccap:{veccap}");
-            let mut v = Vec::with_capacity(veccap);
-            v.extend_from_slice(s);
-            MAByteString::from_vec(v)
+            MAByteString { long: InnerLong::from_slice(s, true) }
         }
     }
+
 
     /// create a MAByteString from a Vec.
     /// This will not allocate.
@@ -158,24 +195,7 @@ impl MAByteString {
             data[0..len].copy_from_slice(&v);
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            //it would be nice to use into_raw_parts() here but it's unstable
-            let cap = v.capacity();
-            let ptr = v.as_mut_ptr();
-            mem::forget(v);
-            unsafe {
-                //check if we have room for a control block.
-                //math wont overflow because a vec is limited to isize,
-                //which has half the range of usize.
-                let end = ptr.add(len);
-                let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
-                let cbrequired = cbstart + size_of::<AtomicUsize>();
-                let mut cbptr : * mut AtomicUsize = ptr::null_mut();
-                if cbrequired <= cap {
-                    cbptr = ptr.add(cbstart) as * mut AtomicUsize;
-                    *cbptr = AtomicUsize::new(3);
-                }
-                MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) }) }
-            }
+            MAByteString { long: InnerLong::from_vec(v, true) }
         }
     }
 
@@ -313,6 +333,45 @@ impl Deref for MAByteString {
    }
 }
 
+
+impl DerefMut for MAByteString {
+   #[inline]
+   fn deref_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let mut len = self.long.len;
+            let ptr = if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                self.short.data.as_mut_ptr()
+            } else { 
+                if self.long.cap == 0 { // static string, we need to copy
+                    *self = MAByteString { long: InnerLong::from_slice(slice::from_raw_parts(self.long.ptr,len),false) };
+                } else {
+                    let cbptr = self.long.cbptr.load(Ordering::Relaxed);
+                    if cbptr.is_null() {
+                        // we already have unique ownership of the string.
+                    } else {
+                        let refcount = (*cbptr).load(Ordering::Relaxed) >> 1;
+                        if refcount == 1 {
+                            // we are the only owner of the String, switch it from shared ownership mode to unique ownership mode.
+                            if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
+                                //free control block pointer
+                                let _ = Box::from_raw(cbptr);
+                            }
+                            self.long.cbptr.store(ptr::null_mut(),Ordering::Relaxed);
+                        } else {
+                            // there are other owners, we need to copy
+                            *self = MAByteString { long: InnerLong::from_slice(slice::from_raw_parts(self.long.ptr,len),false) };
+                        }
+                    }
+                }
+                // if we get here we are in "unique ownership" mode.
+                self.long.ptr
+            };
+            slice::from_raw_parts_mut(ptr,len)
+        }
+   }
+}
+
 #[repr(C)]
 pub union MAByteStringBuilder {
     short: InnerShort,
@@ -338,12 +397,7 @@ impl MAByteStringBuilder {
             data[0..len].copy_from_slice(&s);
             MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            let mask = align_of::<AtomicUsize>() - 1;
-            let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
-            //println!("len:{len} veccap:{veccap}");
-            let mut v = Vec::with_capacity(veccap);
-            v.extend_from_slice(s);
-            MAByteStringBuilder::from_vec(v)
+            MAByteStringBuilder { long : InnerLong::from_slice(s,false) }
         }
     }
 
@@ -358,14 +412,7 @@ impl MAByteStringBuilder {
             data[0..len].copy_from_slice(&v);
             MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            //it would be nice to use into_raw_parts() here but it's unstable
-            let cap = v.capacity();
-            let ptr = v.as_mut_ptr();
-            mem::forget(v);
-            unsafe {
-                let mut cbptr : * mut AtomicUsize = ptr::null_mut();
-                MAByteStringBuilder { long: ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) }) }
-            }
+            MAByteStringBuilder { long: InnerLong::from_vec(v,false) }
         }
     }
 
@@ -464,6 +511,22 @@ impl Deref for MAByteStringBuilder {
    }
 }
 
+impl DerefMut for MAByteStringBuilder {
+   #[inline]
+   fn deref_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let mut len = self.long.len;
+            let ptr = if len > isize::max as usize {
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                self.short.data.as_mut_ptr()
+            } else {
+                self.long.ptr
+            };
+            slice::from_raw_parts_mut(ptr,len)
+        }
+   }
+}
+
 
 #[derive(Clone)]
 pub struct MAString {
@@ -509,6 +572,14 @@ impl MAString {
     pub fn getMode(&self) -> &'static str {
         self.inner.getMode()
     }
+
+    /* // Converts to a mutable string slice.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        unsafe {
+            str::from_utf8_unchecked_mut(&mut self.inner)
+        }
+    }*/
+
 }
 
 impl Deref for MAString {
@@ -520,6 +591,16 @@ impl Deref for MAString {
         }
    }
 }
+
+impl DerefMut for MAString {
+   #[inline]
+   fn deref_mut(&mut self) -> &mut str {
+        unsafe {
+            str::from_utf8_unchecked_mut(&mut self.inner)
+        }
+   }
+}
+
 
 impl fmt::Display for MAString {
     #[inline]
@@ -570,6 +651,16 @@ impl Deref for MAStringBuilder {
         }
    }
 }
+
+impl DerefMut for MAStringBuilder {
+   #[inline]
+   fn deref_mut(&mut self) -> &mut str {
+        unsafe {
+            str::from_utf8_unchecked_mut(&mut self.inner)
+        }
+   }
+}
+
 
 impl fmt::Display for MAStringBuilder {
     #[inline]
