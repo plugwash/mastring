@@ -133,14 +133,14 @@ impl InnerLong {
 
 }
 
-const shortlen : usize = size_of::<InnerLong>()-1;
+const SHORTLEN : usize = size_of::<InnerLong>()-1;
 
 #[repr(C)]
 #[derive(Clone,Copy)]
 struct InnerShort {
     #[cfg(target_endian="big")]
     len: u8,
-    data: [u8;shortlen],
+    data: [u8;SHORTLEN],
     #[cfg(target_endian="little")]
     len: u8,
 }
@@ -159,7 +159,7 @@ impl MAByteString {
     /// Creates a new MAByteString.
     /// This will not allocate
     pub const fn new() -> Self {
-        MAByteString { short: InnerShort { data: [0; shortlen] , len: 0x80 } }
+        MAByteString { short: InnerShort { data: [0; SHORTLEN] , len: 0x80 } }
     }
 
     /// Creates a MAByteString from a slice.
@@ -168,8 +168,8 @@ impl MAByteString {
     /// control block, so cloning will not result in further allocations.
     pub fn from_slice(s: &[u8]) -> Self {
         let len = s.len();
-        if len <= shortlen {
-            let mut data : [u8; shortlen] = [0; shortlen];
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&s);
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
@@ -190,8 +190,8 @@ impl MAByteString {
     /// shared ownership with an external control block. 
     pub fn from_vec(v: Vec<u8>) -> Self {
         let len = v.len();
-        if len <= shortlen {
-            let mut data : [u8; shortlen] = [0; shortlen];
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&v);
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
@@ -204,8 +204,8 @@ impl MAByteString {
     /// Clones of the MAString thus created.
     pub const fn from_static(s: &'static [u8]) -> Self {
         let len = s.len();
-        if len <= shortlen {
-            let mut data : [u8; shortlen] = [0; shortlen];
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             let mut i = 0;
             while i < len {
                  data[i] = s[i];
@@ -243,7 +243,7 @@ impl MAByteString {
     }
 
     /// Return the current mode of the MAByteString (for testing/debugging)
-    pub fn getMode(&self) -> &'static str {
+    pub fn get_mode(&self) -> &'static str {
         unsafe {
             let len = self.long.len;
             if len > isize::max as usize {  //inline string
@@ -385,15 +385,15 @@ impl MAByteStringBuilder {
     /// Creates a new MAByteStringBuilder.
     /// This will not allocate
     pub const fn new() -> Self {
-        MAByteStringBuilder { short: InnerShort { data: [0; shortlen] , len: 0x80 } }
+        MAByteStringBuilder { short: InnerShort { data: [0; SHORTLEN] , len: 0x80 } }
     }
 
     /// Creates a MAByteStringBuilder from a slice.
     /// This will allocate if the string cannot be stored as a short string,
     pub fn from_slice(s: &[u8]) -> Self {
         let len = s.len();
-        if len <= shortlen {
-            let mut data : [u8; shortlen] = [0; shortlen];
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&s);
             MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
@@ -407,8 +407,8 @@ impl MAByteStringBuilder {
     /// as one and the memory owned by the Vec will be freed.
     pub fn from_vec(v: Vec<u8>) -> Self {
         let len = v.len();
-        if len <= shortlen {
-            let mut data : [u8; shortlen] = [0; shortlen];
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&v);
             MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
@@ -454,7 +454,7 @@ impl MAByteStringBuilder {
     /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
     /// This includes logic to detect states that are valid for MAByteString, but
     /// not for MAByteStringBuilder.
-    pub fn getMode(&self) -> &'static str {
+    pub fn get_mode(&self) -> &'static str {
         unsafe {
             let len = self.long.len;
             if len > isize::max as usize {  //inline string
@@ -569,8 +569,8 @@ impl MAString {
     }
 
     /// Return the current mode of the MAByteString (for testing/debugging)
-    pub fn getMode(&self) -> &'static str {
-        self.inner.getMode()
+    pub fn get_mode(&self) -> &'static str {
+        self.inner.get_mode()
     }
 
     /* // Converts to a mutable string slice.
@@ -637,8 +637,8 @@ impl MAStringBuilder {
     }
 
     /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
-    pub fn getMode(&self) -> &'static str {
-        self.inner.getMode()
+    pub fn get_mode(&self) -> &'static str {
+        self.inner.get_mode()
     }
 }
 
@@ -672,7 +672,7 @@ impl fmt::Display for MAStringBuilder {
 
 #[test]
 fn test_len_transmutation() {
-    let v = MAByteString { short: InnerShort { data: [0;shortlen], len: 0x85 } };
+    let v = MAByteString { short: InnerShort { data: [0;SHORTLEN], len: 0x85 } };
     unsafe {
         assert_eq!(v.long.len >> ((size_of::<usize>() - 1) * 8),0x85);
     }
