@@ -188,7 +188,7 @@ impl MAByteString {
     /// if neither of those are possible, then the MAString will have unique
     /// ownership, until it is first Cloned, at which point it will switch to
     /// shared ownership with an external control block. 
-    pub fn from_vec(mut v: Vec<u8>) -> Self {
+    pub fn from_vec(v: Vec<u8>) -> Self {
         let len = v.len();
         if len <= shortlen {
             let mut data : [u8; shortlen] = [0; shortlen];
@@ -268,7 +268,7 @@ impl MAByteString {
 impl Drop for MAByteString {
     fn drop(&mut self) {
         unsafe {
-            let mut len = self.long.len;
+            let len = self.long.len;
             if len > isize::max as usize { return }; //inline string
             let cap = self.long.cap;
             if cap == 0 { return } //static string
@@ -290,7 +290,7 @@ impl Drop for MAByteString {
 impl Clone for MAByteString{
     fn clone(&self) -> Self {
         unsafe {
-            let mut len = self.long.len;
+            let len = self.long.len;
             if len > isize::max as usize {  //inline string
                 MAByteString { short : self.short }
             } else if self.long.cap == 0 { // static string
@@ -405,7 +405,7 @@ impl MAByteStringBuilder {
     /// This will not allocate.
     /// If the string can be represented as a  short string then it will be stored
     /// as one and the memory owned by the Vec will be freed.
-    pub fn from_vec(mut v: Vec<u8>) -> Self {
+    pub fn from_vec(v: Vec<u8>) -> Self {
         let len = v.len();
         if len <= shortlen {
             let mut data : [u8; shortlen] = [0; shortlen];
@@ -479,7 +479,7 @@ impl MAByteStringBuilder {
 impl Drop for MAByteStringBuilder {
     fn drop(&mut self) {
         unsafe {
-            let mut len = self.long.len;
+            let len = self.long.len;
             if len > isize::max as usize { return }; //inline string
             let cap = self.long.cap;
             // we hold the only reference, turn it back into a vec so rust will free it.
@@ -557,7 +557,7 @@ impl MAString {
     /// if neither of those are possible, then the MAString will have unique
     /// ownership, until it is first Cloned, at which point it will switch to
     /// shared ownership with an external control block. 
-    pub fn from_string(mut s: String) -> Self {
+    pub fn from_string(s: String) -> Self {
         MAString { inner: MAByteString::from_vec(s.into_bytes()) }
     }
 
@@ -632,7 +632,7 @@ impl MAStringBuilder {
     /// This will not allocate.
     /// If the string can be represented as a  short string then it will be stored
     /// as one and the memory owned by the Vec will be freed.
-    pub fn from_string(mut s: String) -> Self {
+    pub fn from_string(s: String) -> Self {
         MAStringBuilder { inner: MAByteStringBuilder::from_vec(s.into_bytes()) }
     }
 
