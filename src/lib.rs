@@ -1,7 +1,9 @@
 //! MAString, a string type designed to minimise memory allocations.
 //!
-//! This crate provides two types, MAByteString stores arbitrary
+//! This crate provides four types, MAByteString stores arbitrary
 //! sequences of bytes, while MAString stores valid UTF-8.
+//! MAByteStringBuilder and MAStringbuilder are similar to 
+//! MAByteString and MAString but do not allow shared ownership.
 //!
 //! There are a number of reference-counted string types for rust,
 //! However, these commonly require memory allocation when converting
