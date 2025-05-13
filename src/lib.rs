@@ -141,7 +141,7 @@ impl MAByteString {
         }
     }
 
-    /// create a MABytestring from a Vec.
+    /// create a MAByteString from a Vec.
     /// This will not allocate.
     /// If the string can be represented as a  short string then it will be stored
     /// as one and the memory owned by the
@@ -195,6 +195,30 @@ impl MAByteString {
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
             MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: 0, ptr: s.as_ptr() as *mut u8, cbptr: AtomicPtr::new(ptr::null_mut()) }) }
+        }
+    }
+
+    pub fn from_builder(b : MAByteStringBuilder) -> Self {
+        unsafe {
+            let len = b.long.len;
+            if len > isize::max as usize {
+                return MAByteString { short: b.short };
+            }
+            let cap = b.long.cap;
+            let ptr = b.long.ptr;
+            mem::forget(b);
+            //check if we have room for a control block.
+            //math wont overflow because a vec is limited to isize,
+            //which has half the range of usize.
+            let end = ptr.add(len);
+            let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
+            let cbrequired = cbstart + size_of::<AtomicUsize>();
+            let mut cbptr : * mut AtomicUsize = ptr::null_mut();
+            if cbrequired <= cap {
+                cbptr = ptr.add(cbstart) as * mut AtomicUsize;
+                *cbptr = AtomicUsize::new(3);
+            }
+            MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) }) }
         }
     }
 
@@ -289,6 +313,158 @@ impl Deref for MAByteString {
    }
 }
 
+#[repr(C)]
+pub union MAByteStringBuilder {
+    short: InnerShort,
+    long: ManuallyDrop<InnerLong>,
+}
+unsafe impl Send for MAByteStringBuilder {}
+unsafe impl Sync for MAByteStringBuilder {}
+
+
+impl MAByteStringBuilder {
+    /// Creates a new MAByteStringBuilder.
+    /// This will not allocate
+    pub const fn new() -> Self {
+        MAByteStringBuilder { short: InnerShort { data: [0; shortlen] , len: 0x80 } }
+    }
+
+    /// Creates a MAByteStringBuilder from a slice.
+    /// This will allocate if the string cannot be stored as a short string,
+    pub fn from_slice(s: &[u8]) -> Self {
+        let len = s.len();
+        if len <= shortlen {
+            let mut data : [u8; shortlen] = [0; shortlen];
+            data[0..len].copy_from_slice(&s);
+            MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+        } else {
+            let mask = align_of::<AtomicUsize>() - 1;
+            let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
+            //println!("len:{len} veccap:{veccap}");
+            let mut v = Vec::with_capacity(veccap);
+            v.extend_from_slice(s);
+            MAByteStringBuilder::from_vec(v)
+        }
+    }
+
+    /// create a MAByteStringBuilder from a Vec.
+    /// This will not allocate.
+    /// If the string can be represented as a  short string then it will be stored
+    /// as one and the memory owned by the Vec will be freed.
+    pub fn from_vec(mut v: Vec<u8>) -> Self {
+        let len = v.len();
+        if len <= shortlen {
+            let mut data : [u8; shortlen] = [0; shortlen];
+            data[0..len].copy_from_slice(&v);
+            MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+        } else {
+            //it would be nice to use into_raw_parts() here but it's unstable
+            let cap = v.capacity();
+            let ptr = v.as_mut_ptr();
+            mem::forget(v);
+            unsafe {
+                let mut cbptr : * mut AtomicUsize = ptr::null_mut();
+                MAByteStringBuilder { long: ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) }) }
+            }
+        }
+    }
+
+    pub fn from_mabs(mut s: MAByteString) -> Self {
+        unsafe {
+            let len = s.long.len;
+            if len > isize::max as usize {  //inline string
+                MAByteStringBuilder { short: s.short }
+            } else if s.long.cap == 0 { // static string
+                MAByteStringBuilder::from_slice(&s)
+            } else {
+                let cbptr = s.long.cbptr.load(Ordering::Acquire);
+                if cbptr.is_null() {
+                    let result = MAByteStringBuilder { long: ptr::read(&mut s.long) };
+                    mem::forget(s);
+                    result
+                } else {
+                    let refcount = (*cbptr).load(Ordering::Relaxed) >> 1;
+                    if refcount == 1 {
+                        if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
+                            //free control block pointer
+                            let _ = Box::from_raw(cbptr);
+                        }
+                        let ptr = s.long.ptr;
+                        let len = s.long.len;
+                        let cap = s.long.cap;
+                        mem::forget(s);
+                        MAByteStringBuilder { long: ManuallyDrop::new(InnerLong { ptr: ptr, len: len, cap: cap, cbptr: AtomicPtr::new(ptr::null_mut()) }) }
+
+                    } else {
+                       MAByteStringBuilder::from_slice(&s)
+                    }
+                }
+            }
+        }
+
+    }
+
+    /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
+    /// This includes logic to detect states that are valid for MAByteString, but
+    /// not for MAByteStringBuilder.
+    pub fn getMode(&self) -> &'static str {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                "short"
+            } else if self.long.cap == 0 { // static string
+                "static (invalid)"
+            } else {
+                let cbptr = self.long.cbptr.load(Ordering::Acquire);
+                if cbptr.is_null() {
+                    "unique"
+                } else if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
+                    "cbowned (inavlid)"
+                } else {
+                    "cbinline (invalid)"
+                }
+            }
+        }
+
+    }
+}
+
+impl Drop for MAByteStringBuilder {
+    fn drop(&mut self) {
+        unsafe {
+            let mut len = self.long.len;
+            if len > isize::max as usize { return }; //inline string
+            let cap = self.long.cap;
+            // we hold the only reference, turn it back into a vec so rust will free it.
+            let _ = Vec::from_raw_parts(self.long.ptr, self.long.len, cap);
+        }
+    }
+}
+
+impl Clone for MAByteStringBuilder {
+    fn clone(&self) -> Self {
+        MAByteStringBuilder::from_slice(self)
+    }
+}
+
+impl Deref for MAByteStringBuilder {
+   type Target = [u8];
+   #[inline]
+   fn deref(&self) -> &[u8] {
+        unsafe {
+            let mut len = self.long.len;
+            let ptr = if len > isize::max as usize {
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                self.short.data.as_ptr()
+            } else {
+                self.long.ptr
+            };
+            slice::from_raw_parts(ptr,len)
+        }
+   }
+}
+
+
 #[derive(Clone)]
 pub struct MAString {
     inner: MAByteString,
@@ -351,6 +527,57 @@ impl fmt::Display for MAString {
         fmt::Display::fmt(&**self, f)
     }
 }
+
+#[derive(Clone)]
+pub struct MAStringBuilder {
+    inner: MAByteStringBuilder,
+}
+
+impl MAStringBuilder {
+    /// Creates a new MAString.
+    pub const fn new() -> Self {
+        MAStringBuilder { inner: MAByteStringBuilder::new() }
+    }
+
+    /// Creates a MAStringBuilder from a slice.
+    /// This will allocate if the StringBuilder cannot be stored as a short string,
+    /// the resulting string will be in shared ownership mode with an inline
+    /// control block, so cloning will not result in further allocations.
+    pub fn from_slice(s: &str) -> Self {
+        MAStringBuilder { inner: MAByteStringBuilder::from_slice(s.as_bytes()) }
+    }
+
+    /// create a MAStringBuilder from a std::String.
+    /// This will not allocate.
+    /// If the string can be represented as a  short string then it will be stored
+    /// as one and the memory owned by the Vec will be freed.
+    pub fn from_string(mut s: String) -> Self {
+        MAStringBuilder { inner: MAByteStringBuilder::from_vec(s.into_bytes()) }
+    }
+
+    /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
+    pub fn getMode(&self) -> &'static str {
+        self.inner.getMode()
+    }
+}
+
+impl Deref for MAStringBuilder {
+   type Target = str;
+   #[inline]
+   fn deref(&self) -> &str {
+        unsafe {
+            str::from_utf8_unchecked(&self.inner)
+        }
+   }
+}
+
+impl fmt::Display for MAStringBuilder {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
+    }
+}
+
 
 #[test]
 fn test_len_transmutation() {
