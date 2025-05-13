@@ -573,12 +573,12 @@ impl MAString {
         self.inner.get_mode()
     }
 
-    /* // Converts to a mutable string slice.
+    /// Converts to a mutable string slice.
     pub fn as_mut_str(&mut self) -> &mut str {
         unsafe {
             str::from_utf8_unchecked_mut(&mut self.inner)
         }
-    }*/
+    }
 
 }
 
@@ -640,6 +640,14 @@ impl MAStringBuilder {
     pub fn get_mode(&self) -> &'static str {
         self.inner.get_mode()
     }
+
+    /// Converts to a mutable string slice.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        unsafe {
+            str::from_utf8_unchecked_mut(&mut self.inner)
+        }
+    }
+
 }
 
 impl Deref for MAStringBuilder {
