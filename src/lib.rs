@@ -70,6 +70,8 @@ use core::mem::align_of;
 use core::ptr;
 use core::ops::Deref;
 use core::ops::DerefMut;
+use core::ops::Add;
+use core::ops::AddAssign;
 use core::slice;
 use core::cmp::max;
 
@@ -332,14 +334,44 @@ impl MAByteString {
 
     }
 
+    /// ensure there is capacity for at least extracap more bytes
+    /// beyond the current length of the string
+    /// and return the pointer and len, and the flag that indicates
+    /// whether we are in short mode this saves duplicate
+    /// work in the functions that need to reserve space and
+    /// then use it.
+    fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
+        unsafe {
+            let mut len = self.long.len;
+            let mincap;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                mincap = len + extracap;
+                if mincap > SHORTLEN {
+                    let mincap = max(mincap,SHORTLEN*2);
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                } else {
+                    return (self.short.data.as_mut_ptr(),len, true);
+                }
+            } else {
+                mincap = len + extracap;
+                self.long.deref_mut().make_unique(mincap);
+                self.long.deref_mut().reserve(mincap);
+            }
+            // if we reach here, we know it's a "long" String.
+            return (self.long.ptr, len, false);
+        }
+    }
+
     /// ensure there is capacity for at least mincap bytes
     pub fn reserve(&mut self, mincap: usize) {
         unsafe {
-            let len = self.long.len;
+            let mut len = self.long.len;
             if len > isize::max as usize {  //inline string
                 if mincap > SHORTLEN {
+                    len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(self,false,mincap)) }
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
                 }
             } else {
                 self.long.deref_mut().make_unique(mincap);
@@ -484,6 +516,29 @@ impl DerefMut for MAByteString {
    }
 }
 
+impl Add<&[u8]> for MAByteString {
+    type Output = Self;
+    fn add(mut self, rhs: &[u8]) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<&[u8]> for MAByteString {
+    fn add_assign(&mut self, other: &[u8]) {
+        unsafe {
+            let (ptr, mut len, short) = self.reserve_extra_internal(other.len());
+            ptr::copy_nonoverlapping(other.as_ptr(), ptr.add(len), other.len());
+            len += other.len();
+            if short {
+                self.short.len = (len + 0x80) as u8;
+            } else {
+                self.long.len = len;
+            }
+        }
+    }
+}
+
 #[repr(C)]
 pub union MAByteStringBuilder {
     short: InnerShort,
@@ -565,6 +620,34 @@ impl MAByteStringBuilder {
         }
     }
 
+    /// ensure there is capacity for at least extracap more bytes
+    /// beyond the current length of the string
+    /// and return the pointer and len, and the flag that indicates
+    /// whether we are in short mode this saves duplicate
+    /// work in the functions that need to reserve space and
+    /// then use it.
+    fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
+        unsafe {
+            let mut len = self.long.len;
+            let mincap;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                mincap = len + extracap;
+                if mincap > SHORTLEN {
+                    let mincap = max(mincap,SHORTLEN*2);
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                } else {
+                    return (self.short.data.as_mut_ptr(),len, true);
+                }
+            } else {
+                mincap = len + extracap;
+                self.long.deref_mut().reserve(mincap);
+            }
+            // if we reach here, we know it's a "long" String.
+            return (self.long.ptr, len, false);
+        }
+    }
+
     /// ensure there is capacity for at least mincap bytes
     pub fn reserve(&mut self, mincap: usize) {
         unsafe {
@@ -572,7 +655,7 @@ impl MAByteStringBuilder {
             if len > isize::max as usize {  //inline string
                 if mincap > SHORTLEN {
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(self,false,mincap)) }
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
                 }
             } else {
                 self.long.deref_mut().reserve(mincap);
@@ -618,6 +701,9 @@ impl MAByteStringBuilder {
             return Vec::from_raw_parts(ptr,len,cap);
         }
     }
+
+    
+
 }
 
 impl Drop for MAByteStringBuilder {
@@ -670,6 +756,30 @@ impl DerefMut for MAByteStringBuilder {
         }
    }
 }
+
+impl Add<&[u8]> for MAByteStringBuilder {
+    type Output = Self;
+    fn add(mut self, rhs: &[u8]) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<&[u8]> for MAByteStringBuilder {
+    fn add_assign(&mut self, other: &[u8]) {
+        unsafe {
+            let (ptr, mut len, short) = self.reserve_extra_internal(other.len());
+            ptr::copy_nonoverlapping(other.as_ptr(), ptr.add(len), other.len());
+            len += other.len();
+            if short {
+                self.short.len = (len + 0x80) as u8;
+            } else {
+                self.long.len = len;
+            }
+        }
+    }
+}
+
 
 
 #[derive(Clone)]
@@ -759,7 +869,7 @@ impl MAString {
     pub fn from_utf8(data: MAByteString) -> Result<Self, FromUtf8Error> {
         match str::from_utf8(&data) {
             Ok(..) => Ok( Self { inner: data } ),
-            Err(e) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
+            Err(..) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
         }
     }
 
@@ -767,7 +877,7 @@ impl MAString {
     pub fn from_utf8_lossy(data: MAByteString) -> Self {
         match str::from_utf8(&data) {
             Ok(..) => Self { inner: data },
-            Err(e) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
+            Err(..) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
         }
     }
 
@@ -778,6 +888,10 @@ impl MAString {
         }
     }
 
+    // convert the MAString into a MAByteString
+    pub fn into_bytes(self) -> MAByteString {
+        self.inner
+    }
 }
 
 impl Deref for MAString {
@@ -877,7 +991,7 @@ impl MAStringBuilder {
     pub fn from_utf8(data: MAByteStringBuilder) -> Result<Self, FromUtf8Error> {
         match str::from_utf8(&data) {
             Ok(..) => Ok( Self { inner: data } ),
-            Err(e) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
+            Err(..) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
         }
     }
 
@@ -885,7 +999,7 @@ impl MAStringBuilder {
     pub fn from_utf8_lossy(data: MAByteStringBuilder) -> Self {
         match str::from_utf8(&data) {
             Ok(..) => Self { inner: data },
-            Err(e) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
+            Err(..) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
         }
     }
 
@@ -894,6 +1008,11 @@ impl MAStringBuilder {
         unsafe {
             String::from_utf8_unchecked(self.inner.into_vec())
         }
+    }
+
+    // convert the MAStringBuilder into a MAByteString
+    pub fn into_bytes(self) -> MAByteStringBuilder {
+        self.inner
     }
 
 }
