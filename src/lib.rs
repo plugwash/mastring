@@ -78,6 +78,7 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::str;
 use alloc::string::String;
+use alloc::string::FromUtf8Error;
 use alloc::fmt;
 
 //contol block values
@@ -390,6 +391,22 @@ impl MAByteString {
             }
         }
     }
+
+    /// convert the MAByteStirng into a Vec, this may allocate.
+    pub fn into_vec(mut self) -> Vec<u8> {
+        unsafe {
+            let mut len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                return slice::from_raw_parts(self.short.data.as_ptr(), len).to_vec();
+            }
+            self.long.deref_mut().make_unique(0);
+            let cap = self.long.cap;
+            let ptr = self.long.ptr;
+            mem::forget(self);
+            return Vec::from_raw_parts(ptr,len,cap);
+        }
+    }
 }
 
 impl Drop for MAByteString {
@@ -586,6 +603,21 @@ impl MAByteStringBuilder {
             }
         }
     }
+
+    /// convert the MAByteStringBuilder into a Vec, this may allocate.
+    pub fn into_vec(self) -> Vec<u8> {
+        unsafe {
+            let mut len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                return slice::from_raw_parts(self.short.data.as_ptr(), len).to_vec();
+            }
+            let cap = self.long.cap;
+            let ptr = self.long.ptr;
+            mem::forget(self);
+            return Vec::from_raw_parts(ptr,len,cap);
+        }
+    }
 }
 
 impl Drop for MAByteStringBuilder {
@@ -712,6 +744,40 @@ impl MAString {
     pub fn clear(&mut self) {
         self.inner.clear();
     }
+
+    /// convert the MAString into a Vec, this may allocate.
+    pub fn into_vec(self) -> Vec<u8> {
+        self.inner.into_vec()
+    }
+
+    /// fills the string with UTF-8 data. SAFETY: It is UB to supply invalid UTF-8
+    pub unsafe fn from_utf8_unchecked(data: MAByteString) -> Self {
+        Self { inner: data }
+    }
+
+    /// fills the string with UTF-8 data, returning an error if it is invalid
+    pub fn from_utf8(data: MAByteString) -> Result<Self, FromUtf8Error> {
+        match str::from_utf8(&data) {
+            Ok(..) => Ok( Self { inner: data } ),
+            Err(e) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
+        }
+    }
+
+    /// fills the string with UTF-8 data, returning an error if it is invalid
+    pub fn from_utf8_lossy(data: MAByteString) -> Self {
+        match str::from_utf8(&data) {
+            Ok(..) => Self { inner: data },
+            Err(e) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
+        }
+    }
+
+    /// convert the MAString into a Std::string, this may allocate.
+    pub fn into_string(self) -> String {
+        unsafe {
+            String::from_utf8_unchecked(self.inner.into_vec())
+        }
+    }
+
 }
 
 impl Deref for MAString {
@@ -797,6 +863,38 @@ impl MAStringBuilder {
         self.inner.clear();
     }
 
+    /// convert the MAStringBuilder into a Vec, this may allocate.
+    pub fn into_vec(self) -> Vec<u8> {
+        self.inner.into_vec()
+    }
+
+    /// fills the string with UTF-8 data. SAFETY: It is UB to supply invalid UTF-8
+    pub unsafe fn from_utf8_unchecked(data: MAByteStringBuilder) -> Self {
+        Self { inner: data }
+    }
+
+    /// fills the string with UTF-8 data, returning an error if it is invalid
+    pub fn from_utf8(data: MAByteStringBuilder) -> Result<Self, FromUtf8Error> {
+        match str::from_utf8(&data) {
+            Ok(..) => Ok( Self { inner: data } ),
+            Err(e) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
+        }
+    }
+
+    /// fills the string with UTF-8 data, returning an error if it is invalid
+    pub fn from_utf8_lossy(data: MAByteStringBuilder) -> Self {
+        match str::from_utf8(&data) {
+            Ok(..) => Self { inner: data },
+            Err(e) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),
+        }
+    }
+
+    /// convert the MAStringBuilder into a Std::string, this may allocate.
+    pub fn into_string(self) -> String {
+        unsafe {
+            String::from_utf8_unchecked(self.inner.into_vec())
+        }
+    }
 
 }
 
