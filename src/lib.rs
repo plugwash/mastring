@@ -346,6 +346,50 @@ impl MAByteString {
             }
         }
     }
+
+    /// report the "capacity" of the string. Be aware that due to MAByteStrings
+    /// copy on write model, this does not gaurantee that future operations
+    /// will not allocate.
+    pub fn capacity(&self) -> usize {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                SHORTLEN
+            } else {
+                self.long.cap
+            }
+        }
+    }
+
+    // clears the string.
+    // if the string is in unique ownership mode, or is in shared ownership
+    // mode but we are the only owner then this will reset the length but/
+    // leave the capacity untouched. Otherwise the string will be reset to
+    // an empty short string.
+    pub fn clear(&mut self) {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                self.short.len = 0x80;
+            } if self.long.cap == 0 { // static string
+                self.short.len = 0x80;
+            } else {
+                let cbptr = self.long.cbptr.load(Ordering::Relaxed);
+                if cbptr.is_null() { // unique ownership mode.
+                    self.long.len = 0;
+                } else {
+                    let refcount = (*cbptr).load(Ordering::Relaxed) >> 1;
+                    if refcount == 1 {
+                        // we are the only owner of the String
+                        self.long.len = 0;
+                    } else {
+                        // there are other owners, we need to seperate ourselves from them.
+                        *self = Self::new();
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Drop for MAByteString {
@@ -519,6 +563,29 @@ impl MAByteStringBuilder {
         }
     }
 
+    /// report the "capacity" of the string.
+    pub fn capacity(&self) -> usize {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                SHORTLEN
+            } else {
+                self.long.cap
+            }
+        }
+    }
+
+    // clears the string, retaining it's capacity.
+    pub fn clear(&mut self) {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                self.short.len = 0x80;
+            } else {
+                self.long.len = 0;
+            }
+        }
+    }
 }
 
 impl Drop for MAByteStringBuilder {
@@ -630,7 +697,21 @@ impl MAString {
         self.inner.reserve(mincap);
     }
 
+    /// report the "capacity" of the string. Be aware that due to MAByteStrings
+    /// copy on write model, this does not gaurantee that future operations
+    /// will not allocate.
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
 
+    // clears the string.
+    // if the string is in unique ownership mode, or is in shared ownership
+    // mode but we are the only owner then this will reset the length but/
+    // leave the capacity untouched. Otherwise the string will be reset to
+    // an empty short string.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
 }
 
 impl Deref for MAString {
@@ -703,6 +784,19 @@ impl MAStringBuilder {
     pub fn reserve(&mut self, mincap: usize) {
         self.inner.reserve(mincap);
     }
+
+    /// report the "capacity" of the string. Be aware that due to MAByteStrings
+    /// copy on write model, this does not gaurantee that future operations
+    /// will not allocate.
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    // clears the string, retaining it's capacity.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
 
 }
 
