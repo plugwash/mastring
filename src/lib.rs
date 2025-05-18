@@ -622,7 +622,7 @@ fn bytes_debug(s: &[u8], f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
                 let mut escaped: [u8;4] = *b"\\xxx";
                 let mut uppernibble = c >> 4;
                 if uppernibble < 10 {
-                    uppernibble += b'9'
+                    uppernibble += b'0'
                 } else {
                     uppernibble -= 10;
                     uppernibble += b'a';
@@ -630,7 +630,7 @@ fn bytes_debug(s: &[u8], f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
                 escaped[2] = uppernibble;
                 let mut lowernibble = c & 0xF;
                 if lowernibble < 10 {
-                    lowernibble += b'9'
+                    lowernibble += b'0'
                 } else {
                     lowernibble -= 10;
                     lowernibble += b'a';
@@ -640,8 +640,8 @@ fn bytes_debug(s: &[u8], f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
                     //safety: we know the string is ascii.
                     f.write_str(str::from_utf8_unchecked(&escaped))?;
                 }
-                groupstart = p + 1;
             }
+            groupstart = p + 1;
         }
         p += 1;
     }
