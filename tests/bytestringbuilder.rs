@@ -52,6 +52,14 @@ fn test_from_mabs() {
     let s = MAByteStringBuilder::from_mabs(MAByteString::from_slice(b"the quick brown fox jumped over the lazy dog"));
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
+
+    let s = MAByteString::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
+    let s2 = s.clone();
+    drop(s2);
+    let s =MAByteStringBuilder::from_mabs(s);
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+
 }
 
 #[test]
