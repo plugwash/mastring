@@ -59,7 +59,7 @@
 //! control blocks, and the remaining bits used as a reference
 //! count.
 
-//#![no_std]
+#![no_std]
 use core::sync::atomic::AtomicPtr;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
@@ -1442,9 +1442,9 @@ fn test_reserve_extra_internal() {
     // of the inline control block
     let oldptr = s.as_ptr();
     let oldlen = s.len();
-    unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
+    //unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
     let (ptr, len, isshort) = s.reserve_extra_internal(mem::size_of::<usize>());
-    unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
+    //unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
     assert_eq!(ptr as *const u8,oldptr);
     assert_eq!(len,oldlen);
     assert_eq!(isshort, false);
