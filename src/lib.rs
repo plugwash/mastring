@@ -149,7 +149,7 @@ impl InnerLong {
     fn make_unique(&mut self, mincap: usize, allowcb: bool) {
         if self.cap == 0 { // static string, we need to copy
             unsafe {
-                *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),false,mincap);
+                *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),allowcb,mincap);
             }
         } else {
             let cbptr = self.cbptr.load(Ordering::Relaxed);
