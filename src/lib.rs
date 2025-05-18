@@ -177,7 +177,7 @@ impl InnerLong {
     // before calling, use make_unique if needed.
     unsafe fn reserve(&mut self, mut mincap: usize) {
         let cap = self.cap;
-        if mincap >= cap { return };
+        if mincap <= cap { return };
         mincap = max(mincap, cap * 2);
         *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), false,  mincap);
     }
