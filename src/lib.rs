@@ -7,7 +7,7 @@
 //!
 //! There are a number of reference-counted string types for rust,
 //! However, these commonly require memory allocation when converting
-//! From a std::String, which means adopting them can actually
+//! From a alloc::String, which means adopting them can actually
 //! increase memory allocator calls.
 //!
 //! This crate attempts to solve that, it is currently at the alpha
