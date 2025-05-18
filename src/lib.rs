@@ -101,10 +101,12 @@ struct InnerLong {
 
 impl InnerLong {
     #[inline]
-    fn from_vec(mut v: Vec<u8>, allowcb: bool) -> Self {
+    fn from_vec(mut v: Vec<u8>, allowcb: bool, mincap: usize) -> Self {
         // it would be nice to use into_raw_parts here, but it's unstable.
         let len = v.len();
         let cap = v.capacity();
+        assert!(mincap <= cap);
+        let mincap = max(len,mincap);
         let ptr = v.as_mut_ptr();
         mem::forget(v);
         let mut cbptr : * mut AtomicUsize = ptr::null_mut();
@@ -113,7 +115,7 @@ impl InnerLong {
                 //check if we have room for a control block.
                 //math wont overflow because a vec is limited to isize,
                 //which has half the range of usize.
-                let end = ptr.add(len);
+                let end = ptr.add(mincap);
                 let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
                 let cbrequired = cbstart + size_of::<AtomicUsize>();
                 if cbrequired <= cap {
@@ -133,7 +135,7 @@ impl InnerLong {
         //println!("len:{len} veccap:{veccap}");
         let mut v = Vec::with_capacity(veccap);
         v.extend_from_slice(s);
-        Self::from_vec(v,allowcb)
+        Self::from_vec(v,allowcb,mincap)
     }
 
     // ensure the pointer is unique
@@ -265,7 +267,7 @@ impl MAByteString {
             data[0..len].copy_from_slice(&v);
             MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            MAByteString { long: ManuallyDrop::new(InnerLong::from_vec(v, true)) }
+            MAByteString { long: ManuallyDrop::new(InnerLong::from_vec(v, true, 0)) }
         }
     }
 
@@ -579,7 +581,7 @@ impl MAByteStringBuilder {
             data[0..len].copy_from_slice(&v);
             MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
         } else {
-            MAByteStringBuilder { long: ManuallyDrop::new(InnerLong::from_vec(v,false)) }
+            MAByteStringBuilder { long: ManuallyDrop::new(InnerLong::from_vec(v,false,0)) }
         }
     }
 
