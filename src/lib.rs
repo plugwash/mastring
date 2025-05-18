@@ -1011,6 +1011,10 @@ impl MAString {
         MAString { inner: MAByteString::from_static(s.as_bytes()) }
     }
 
+    pub fn from_builder(b : MAStringBuilder) -> Self {
+        MAString { inner: MAByteString::from_builder(b.inner) }
+    }
+
     /// Return the current mode of the MAByteString (for testing/debugging)
     pub fn get_mode(&self) -> &'static str {
         self.inner.get_mode()
@@ -1133,6 +1137,21 @@ impl PartialEq<MAString> for &str {
          return *self == other.deref();
     }
 }
+
+impl Add<&str> for MAString {
+    type Output = Self;
+    fn add(mut self, rhs: &str) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<&str> for MAString {
+    fn add_assign(&mut self, other: &str) {
+        self.inner.add_assign(other.as_bytes());
+    }
+}
+
 
 #[derive(Clone)]
 pub struct MAStringBuilder {
