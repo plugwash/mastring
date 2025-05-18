@@ -1181,6 +1181,11 @@ impl MAStringBuilder {
         MAStringBuilder { inner: MAByteStringBuilder::from_vec(s.into_bytes()) }
     }
 
+    // converts a MAString into a MAStringBuilder
+    pub fn from_mas(s: MAString) -> Self {
+        MAStringBuilder { inner: MAByteStringBuilder::from_mabs(s.inner) }
+    }
+
     /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
     pub fn get_mode(&self) -> &'static str {
         self.inner.get_mode()
