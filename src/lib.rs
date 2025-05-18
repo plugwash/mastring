@@ -119,7 +119,7 @@ impl InnerLong {
                 //math wont overflow because a vec is limited to isize,
                 //which has half the range of usize.
                 let end = ptr.add(mincap);
-                let cbstart = len + end.align_offset(align_of::<AtomicUsize>());
+                let cbstart = mincap + end.align_offset(align_of::<AtomicUsize>());
                 let cbrequired = cbstart + size_of::<AtomicUsize>();
                 if cbrequired <= cap {
                     cbptr = ptr.add(cbstart) as * mut AtomicUsize;
@@ -430,8 +430,10 @@ impl MAByteString {
         unsafe {
             let len = self.long.len;
             if len > isize::max as usize {  //inline string
+                //println!("short string");
                 SHORTLEN
             } else {
+                //println!("long string, self.long.cap = {}",self.long.cap);
                 self.long.usablecap()
             }
         }
