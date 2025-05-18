@@ -805,7 +805,7 @@ impl MAByteStringBuilder {
     /// ensure there is capacity for at least mincap bytes
     pub fn reserve(&mut self, mincap: usize) {
         unsafe {
-            let len = self.long.len;
+            let mut len = self.long.len;
             if len > isize::max as usize {  //inline string
                 if mincap > SHORTLEN {
                     len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
@@ -1302,6 +1302,19 @@ impl PartialEq<MAStringBuilder> for &str {
     }
 }
 
+impl Add<&str> for MAStringBuilder {
+    type Output = Self;
+    fn add(mut self, rhs: &str) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<&str> for MAStringBuilder {
+    fn add_assign(&mut self, other: &str) {
+        self.inner.add_assign(other.as_bytes());
+    }
+}
 
 #[test]
 fn test_len_transmutation() {
