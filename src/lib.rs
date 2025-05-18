@@ -200,7 +200,7 @@ impl InnerLong {
     // implement an exponential reallocation
     // SAFETY: callers must ensure that the innerlong has unique ownership
     // before calling, use make_unique if needed.
-    unsafe fn reserve(&mut self, mut mincap: usize) {
+    unsafe fn reserve(&mut self, mut mincap: usize, allowcb: bool) {
         let cap = self.cap;
         if mincap <= cap { 
             if mincap <= self.usablecap() { return }
@@ -209,7 +209,7 @@ impl InnerLong {
             return
         };
         mincap = max(mincap, cap * 2);
-        *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), false,  mincap);
+        *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), allowcb,  mincap);
     }
 
 }
@@ -391,7 +391,7 @@ impl MAByteString {
         unsafe {
             let mut len = self.long.len;
             let mincap;
-            //println!("entering reserve_extra_internal mode={}",self.get_mode());
+            //println!("entering reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
             if len > isize::max as usize {  //inline string
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                 mincap = len + extracap;
@@ -399,15 +399,15 @@ impl MAByteString {
                     let mincap = max(mincap,SHORTLEN*2);
                     *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
                 } else {
-                    //println!("returning from reserve_extra_internal mode={}",self.get_mode());
+                    //println!("returning from reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
                     return (self.short.data.as_mut_ptr(),len, true);
                 }
             } else {
                 mincap = len + extracap;
                 self.long.deref_mut().make_unique(mincap,true);
-                //println!("called make_unique mode={}",self.get_mode());
-                self.long.deref_mut().reserve(mincap);
-                //println!("returning from reserve_extra_internal mode={}",self.get_mode());
+                //println!("called make_unique mode={} capacity={}",self.get_mode(),self.capacity());
+                self.long.deref_mut().reserve(mincap,true);
+                //println!("returning from reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
             }
             // if we reach here, we know it's a "long" String.
             return (self.long.ptr, len, false);
@@ -426,7 +426,7 @@ impl MAByteString {
                 }
             } else {
                 self.long.deref_mut().make_unique(mincap,true);
-                self.long.deref_mut().reserve(mincap);
+                self.long.deref_mut().reserve(mincap,true);
             }
         }
     }
@@ -793,7 +793,7 @@ impl MAByteStringBuilder {
                 }
             } else {
                 mincap = len + extracap;
-                self.long.deref_mut().reserve(mincap);
+                self.long.deref_mut().reserve(mincap,false);
             }
             // if we reach here, we know it's a "long" String.
             return (self.long.ptr, len, false);
@@ -810,7 +810,7 @@ impl MAByteStringBuilder {
                     *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
                 }
             } else {
-                self.long.deref_mut().reserve(mincap);
+                self.long.deref_mut().reserve(mincap,false);
             }
         }
     }
@@ -1360,7 +1360,7 @@ fn test_reserve_extra_internal() {
     assert_eq!(s.get_mode(),"cbinline (unique)");
     // small reservation, doesn't require reallocation, but does require getting rid
     // of the inline control block
-    s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    s.reserve_extra_internal(mem::size_of::<usize>());
     assert_eq!(s.get_mode(),"unique");
 
     let mut s = MAByteStringBuilder::from_slice(b"test");
