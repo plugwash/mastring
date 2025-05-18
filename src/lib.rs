@@ -74,6 +74,7 @@ use core::ops::Add;
 use core::ops::AddAssign;
 use core::slice;
 use core::cmp::max;
+use core::cmp::min;
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -391,7 +392,16 @@ impl MAByteString {
             if len > isize::max as usize {  //inline string
                 SHORTLEN
             } else {
-                self.long.cap
+                // check for an inline control block.
+                let ptr = self.long.ptr as usize;
+                let cbptr = self.long.cbptr.load(Ordering::Acquire) as usize;
+                if cbptr < ptr {
+                    // no control block, or outline control block located before data
+                    self.long.cap
+                } else {
+                    // inline control block, or outline control block located after data.
+                    min(cbptr - ptr,self.long.cap)
+                }
             }
         }
     }
