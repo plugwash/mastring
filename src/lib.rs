@@ -459,7 +459,7 @@ impl MAByteString {
             let len = self.long.len;
             if len > isize::max as usize {  //inline string
                 self.short.len = 0x80;
-            } if self.long.cap == 0 { // static string
+            } else if self.long.cap == 0 { // static string
                 self.short.len = 0x80;
             } else {
                 let cbptr = self.long.cbptr.load(Ordering::Relaxed);
