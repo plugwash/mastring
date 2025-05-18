@@ -583,6 +583,103 @@ impl AddAssign<&[u8]> for MAByteString {
     }
 }
 
+fn bytes_debug(s: &[u8], f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+    f.write_str("b\"")?;
+    let mut groupstart = 0;
+    let mut p = 0;
+    let len = s.len();
+    while p < len {
+        let c = s[p];
+        if (c < 0x20) || (c > 0x7E) || (c == b'\\') || (c == b'\"') {
+            // we found a character that can't be written directly
+            // check if there are any characters waiting to be written
+            // before the current one
+            if groupstart < p {
+                unsafe {
+                    // safety: we have validated that this subsequence is ascii only
+                    f.write_str(str::from_utf8_unchecked(&s[groupstart..p]))?;
+                }
+            }
+            // write an escape for the current char
+            if c == b'\\' {
+                f.write_str("\\\\")?;
+            } else if c == b'\"' {
+                f.write_str("\\\"")?;
+            } else {
+                let mut escaped: [u8;4] = *b"\\xxx";
+                let mut uppernibble = c >> 4;
+                if uppernibble < 10 {
+                    uppernibble += b'9'
+                } else {
+                    uppernibble -= 10;
+                    uppernibble += b'a';
+                }
+                escaped[2] = uppernibble;
+                let mut lowernibble = c & 0xF;
+                if lowernibble < 10 {
+                    lowernibble += b'9'
+                } else {
+                    lowernibble -= 10;
+                    lowernibble += b'a';
+                }
+                escaped[3] = lowernibble;
+                unsafe {
+                    //safety: we know the string is ascii.
+                    f.write_str(str::from_utf8_unchecked(&escaped))?;
+                }
+                groupstart = p + 1;
+            }
+        }
+        p += 1;
+    }
+    if groupstart < len {
+        unsafe {
+            // safety: we have validated that this subsequence is ascii only
+            f.write_str(str::from_utf8_unchecked(&s[groupstart..len]))?;
+        }
+    }
+    f.write_str("\"")?;
+    Ok(())
+
+}
+
+impl fmt::Debug for MAByteString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        bytes_debug(self,f)
+    }
+}
+
+impl PartialEq for MAByteString {
+    fn eq(&self, other : &MAByteString) -> bool {
+         return self.deref() == other.deref();
+    }
+}
+impl Eq for MAByteString {}
+
+impl PartialEq<&[u8]> for MAByteString {
+    fn eq(&self, other : &&[u8]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl PartialEq<MAByteString> for &[u8] {
+    fn eq(&self, other : &MAByteString) -> bool {
+         return *self == other.deref();
+    }
+}
+
+impl<const N: usize> PartialEq<&[u8;N]> for MAByteString {
+    fn eq(&self, other : &&[u8;N]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl<const N: usize>  PartialEq<MAByteString> for &[u8;N] {
+    fn eq(&self, other : &MAByteString) -> bool {
+         return *self == other.deref();
+    }
+}
+
 #[repr(C)]
 pub union MAByteStringBuilder {
     short: InnerShort,
@@ -824,7 +921,42 @@ impl AddAssign<&[u8]> for MAByteStringBuilder {
     }
 }
 
+impl fmt::Debug for MAByteStringBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        bytes_debug(self,f)
+    }
+}
 
+impl PartialEq for MAByteStringBuilder {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return self.deref() == other.deref();
+    }
+}
+impl Eq for MAByteStringBuilder {}
+
+impl PartialEq<&[u8]> for MAByteStringBuilder {
+    fn eq(&self, other : &&[u8]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl PartialEq<MAByteStringBuilder> for &[u8] {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return *self == other.deref();
+    }
+}
+
+impl<const N: usize> PartialEq<&[u8;N]> for MAByteStringBuilder {
+    fn eq(&self, other : &&[u8;N]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl<const N: usize>  PartialEq<MAByteStringBuilder> for &[u8;N] {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return *self == other.deref();
+    }
+}
 
 #[derive(Clone)]
 pub struct MAString {
@@ -957,11 +1089,35 @@ impl DerefMut for MAString {
    }
 }
 
-
 impl fmt::Display for MAString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for MAString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        fmt::Debug::fmt(self.deref(),f)
+    }
+}
+
+impl PartialEq for MAString {
+    fn eq(&self, other : &MAString) -> bool {
+         return self.deref() == other.deref();
+    }
+}
+impl Eq for MAString {}
+
+impl PartialEq<&str> for MAString {
+    fn eq(&self, other : &&str) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl PartialEq<MAString> for &str {
+    fn eq(&self, other : &MAString) -> bool {
+         return *self == other.deref();
     }
 }
 
@@ -1085,6 +1241,31 @@ impl fmt::Display for MAStringBuilder {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for MAStringBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        fmt::Debug::fmt(self.deref(),f)
+    }
+}
+
+impl PartialEq for MAStringBuilder {
+    fn eq(&self, other : &MAStringBuilder) -> bool {
+         return self.deref() == other.deref();
+    }
+}
+impl Eq for MAStringBuilder {}
+
+impl PartialEq<&str> for MAStringBuilder {
+    fn eq(&self, other : &&str) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl PartialEq<MAStringBuilder> for &str {
+    fn eq(&self, other : &MAStringBuilder) -> bool {
+         return *self == other.deref();
     }
 }
 
