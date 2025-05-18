@@ -143,7 +143,8 @@ impl InnerLong {
     // if the string is copied, then mincap sets the minimum capacity of the new
     // string, excluding control block space. However if the string is not copied
     // then it's capacity is left unchanged.
-    fn make_unique(&mut self, mincap: usize) {
+    #[inline]
+    fn make_unique(&mut self, mincap: usize, allowcb: bool) {
         if self.cap == 0 { // static string, we need to copy
             unsafe {
                 *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),false,mincap);
@@ -156,28 +157,51 @@ impl InnerLong {
                 unsafe {
                     let refcount = (*cbptr).load(Ordering::Relaxed) >> 1;
                     if refcount == 1 {
-                        // we are the only owner of the String, switch it from shared ownership mode to unique ownership mode.
-                        if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
-                            //free control block pointer
-                            let _ = Box::from_raw(cbptr);
+                        // we are the only owner of the String
+                        if !allowcb {
+                            // switch it from shared ownership mode to unique ownership mode.
+                            if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
+                                //free control block pointer
+                                let _ = Box::from_raw(cbptr);
+                            }
+                            self.cbptr.store(ptr::null_mut(),Ordering::Relaxed);
                         }
-                        self.cbptr.store(ptr::null_mut(),Ordering::Relaxed);
                     } else {
                         // there are other owners, we need to copy
-                        *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),false,mincap) ;
+                        *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),allowcb,mincap) ;
                     }
                 }
             }
         }
     }
 
+    fn usablecap(&self) -> usize {
+        // check for an inline control block.
+        let ptr = self.ptr as usize;
+        // use relaxed as the only time the value critically matters is
+        // when we already have unique ownership.
+        let cbptr = self.cbptr.load(Ordering::Relaxed) as usize;
+        if cbptr < ptr {
+            // no control block, or outline control block located before data
+            self.cap
+        } else {
+            // inline control block, or outline control block located after data.
+            min(cbptr - ptr,self.cap)
+        }
+    }
+
     // reallocate the buffer if it's capacity is less than requested.
     // implement an exponential reallocation
-    // SAFETY: callers must ensure that the innerlong is in the unique ownership state
+    // SAFETY: callers must ensure that the innerlong has unique ownership
     // before calling, use make_unique if needed.
     unsafe fn reserve(&mut self, mut mincap: usize) {
         let cap = self.cap;
-        if mincap <= cap { return };
+        if mincap <= cap { 
+            if mincap < self.usablecap() { return }
+            // an inline control block is reducing our usable capacity, get rid of it
+            self.cbptr = AtomicPtr::new(ptr::null_mut());
+            return
+        };
         mincap = max(mincap, cap * 2);
         *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), false,  mincap);
     }
@@ -358,7 +382,7 @@ impl MAByteString {
                 }
             } else {
                 mincap = len + extracap;
-                self.long.deref_mut().make_unique(mincap);
+                self.long.deref_mut().make_unique(mincap,true);
                 self.long.deref_mut().reserve(mincap);
             }
             // if we reach here, we know it's a "long" String.
@@ -377,7 +401,7 @@ impl MAByteString {
                     *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
                 }
             } else {
-                self.long.deref_mut().make_unique(mincap);
+                self.long.deref_mut().make_unique(mincap,true);
                 self.long.deref_mut().reserve(mincap);
             }
         }
@@ -392,16 +416,7 @@ impl MAByteString {
             if len > isize::max as usize {  //inline string
                 SHORTLEN
             } else {
-                // check for an inline control block.
-                let ptr = self.long.ptr as usize;
-                let cbptr = self.long.cbptr.load(Ordering::Acquire) as usize;
-                if cbptr < ptr {
-                    // no control block, or outline control block located before data
-                    self.long.cap
-                } else {
-                    // inline control block, or outline control block located after data.
-                    min(cbptr - ptr,self.long.cap)
-                }
+                self.long.usablecap()
             }
         }
     }
@@ -444,7 +459,7 @@ impl MAByteString {
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                 return slice::from_raw_parts(self.short.data.as_ptr(), len).to_vec();
             }
-            self.long.deref_mut().make_unique(0);
+            self.long.deref_mut().make_unique(0,true);
             let cap = self.long.cap;
             let ptr = self.long.ptr;
             mem::forget(self);
@@ -519,8 +534,10 @@ impl DerefMut for MAByteString {
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                 self.short.data.as_mut_ptr()
             } else { 
-                self.long.deref_mut().make_unique(0);
-                // if we get here we are in "unique ownership" mode.
+                self.long.deref_mut().make_unique(0,true);
+                // if we get here we have unique owenership of the data
+                // either by being in unique mode, or by being in shared
+                // ownership mode but being the only owner.
                 self.long.ptr
             };
             slice::from_raw_parts_mut(ptr,len)
@@ -601,7 +618,7 @@ impl MAByteStringBuilder {
             if len > isize::max as usize {  //inline string
                 MAByteStringBuilder { short: s.short }
             } else {
-                s.long.deref_mut().make_unique(0);
+                s.long.deref_mut().make_unique(0,false);
                 let inner = ptr::read(&mut s.long);
                 mem::forget(s);
                 MAByteStringBuilder { long: inner }
