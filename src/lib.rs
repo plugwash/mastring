@@ -433,7 +433,7 @@ impl MAByteString {
 
     /// report the "capacity" of the string. Be aware that due to MAByteStrings
     /// copy on write model, this does not gaurantee that future operations
-    /// will not allocate.
+    /// will not allocate. Returns zero for static strings.
     pub fn capacity(&self) -> usize {
         unsafe {
             let len = self.long.len;
