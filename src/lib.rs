@@ -808,6 +808,7 @@ impl MAByteStringBuilder {
             let len = self.long.len;
             if len > isize::max as usize {  //inline string
                 if mincap > SHORTLEN {
+                    len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                     let mincap = max(mincap,SHORTLEN*2);
                     *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
                 }
