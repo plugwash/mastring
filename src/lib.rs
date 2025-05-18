@@ -451,9 +451,9 @@ impl MAByteString {
 
     // clears the string.
     // if the string is in unique ownership mode, or is in shared ownership
-    // mode but we are the only owner then this will reset the length but/
-    // leave the capacity untouched. Otherwise the string will be reset to
-    // an empty short string.
+    // mode but we are the only owner then this will reset the length but
+    // leave the mode and capacity untouched. Otherwise the string will be
+    // reset to an empty short string.
     pub fn clear(&mut self) {
         unsafe {
             let len = self.long.len;
