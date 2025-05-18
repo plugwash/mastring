@@ -15,7 +15,8 @@
 //!
 //! A MAString or MABytestring is four pointers in size, and can be in one of
 //! five modes, the mode can be checked through the "mode" method.
-//! which returns a string representing the current mode.
+//! which returns a string representing the current mode and if the string
+//! is in a shared ownership mode whether or not it is actually shared.
 //! 
 //! There are five possible modes.
 //! * Short string ("short"): the string data is stored entirely
@@ -340,6 +341,8 @@ impl MAByteString {
     }
 
     /// Return the current mode of the MAByteString (for testing/debugging)
+    /// The strings returned from this function are not considred stable, and
+    /// changes to them are not considered a semver break.
     pub fn get_mode(&self) -> &'static str {
         unsafe {
             let len = self.long.len;
@@ -351,10 +354,22 @@ impl MAByteString {
                 let cbptr = self.long.cbptr.load(Ordering::Acquire);
                 if cbptr.is_null() {
                     "unique"
-                } else if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
-                    "cbowned"
-                } else {
-                    "cbinline"
+                } else { 
+                    let cbval = (*cbptr).load(Ordering::Relaxed);
+                    //println!("cbval = {}",cbval);
+                    if (cbval & 1) == 0 {
+                        if cbval <= 3 {
+                            "cbowned (unique)"
+                        } else {
+                            "cbowned (shared)"
+                        }
+                    } else {
+                        if cbval <= 3 {
+                            "cbinline (unique)"
+                        } else {
+                            "cbinline (shared)"
+                        }
+                    }
                 }
             }
         }
