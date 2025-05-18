@@ -203,7 +203,7 @@ impl InnerLong {
     unsafe fn reserve(&mut self, mut mincap: usize) {
         let cap = self.cap;
         if mincap <= cap { 
-            if mincap < self.usablecap() { return }
+            if mincap <= self.usablecap() { return }
             // an inline control block is reducing our usable capacity, get rid of it
             self.cbptr = AtomicPtr::new(ptr::null_mut());
             return
