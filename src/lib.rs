@@ -59,7 +59,7 @@
 //! control blocks, and the remaining bits used as a reference
 //! count.
 
-#![no_std]
+//#![no_std]
 use core::sync::atomic::AtomicPtr;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
@@ -1293,24 +1293,44 @@ fn test_len_transmutation() {
 fn test_reserve_extra_internal() {
     let mut s = MAByteString::from_static(b"test");
     assert_eq!(s.get_mode(),"short");
-    s.reserve_extra_internal(10);
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(10);
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, true);
     assert_eq!(s,b"test");
     assert_eq!(s.get_mode(),"short");
     assert_eq!(s.capacity(),mem::size_of_val(&s)-1);
-    s.reserve_extra_internal(100-s.len());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"test");
     assert_eq!(s.get_mode(),"cbinline (unique)");
     assert!(s.capacity() >= 100);
     assert!(s.capacity() <= 150);
     assert_eq!(s.get_mode(),"cbinline (unique)");
-    s.reserve_extra_internal(0); //should do nothing
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); //should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert!(s.capacity() >= 100);
     assert!(s.capacity() <= 150);
 
     let mut s = MAByteString::from_static(b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"static");
-    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because
-                   // it's currently in static memory.
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // no extra space requested, but string must be copied because
+                                                  // it's currently in static memory.
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"cbinline (unique)");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
@@ -1318,7 +1338,12 @@ fn test_reserve_extra_internal() {
 
     let mut s = MAByteString::from_static(b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"static");
-    s.reserve_extra_internal(100-s.len());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"cbinline (unique)");
     assert!(s.capacity() >= 100);
@@ -1326,7 +1351,12 @@ fn test_reserve_extra_internal() {
     let s2 = s.clone();
     assert_eq!(s.get_mode(),"cbinline (shared)");
     assert_eq!(s2.get_mode(),"cbinline (shared)");
-    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     //s now has a new buffer
     assert_eq!(s.get_mode(),"cbinline (unique)");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
@@ -1338,7 +1368,12 @@ fn test_reserve_extra_internal() {
 
     let mut s = MAByteString::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
     assert_eq!(s.get_mode(),"unique");
-    s.reserve_extra_internal(0); // should do nothing
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
@@ -1346,7 +1381,12 @@ fn test_reserve_extra_internal() {
     let s2 = s.clone();
     assert_eq!(s.get_mode(),"cbowned (shared)");
     assert_eq!(s2.get_mode(),"cbowned (shared)");
-    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     //s now has a new buffer
     assert_eq!(s.get_mode(),"cbinline (unique)");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
@@ -1360,28 +1400,55 @@ fn test_reserve_extra_internal() {
     assert_eq!(s.get_mode(),"cbinline (unique)");
     // small reservation, doesn't require reallocation, but does require getting rid
     // of the inline control block
-    s.reserve_extra_internal(mem::size_of::<usize>());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
+    let (ptr, len, isshort) = s.reserve_extra_internal(mem::size_of::<usize>());
+    unsafe { println!("s.long.len = {}, s.long,cap = {}, s.long.ptr = {:?}",s.long.len,s.long.cap,s.long.ptr); }
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s.get_mode(),"unique");
 
     let mut s = MAByteStringBuilder::from_slice(b"test");
     assert_eq!(s.get_mode(),"short");
-    s.reserve_extra_internal(10);
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(10);
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, true);
     assert_eq!(s,b"test");
     assert_eq!(s.get_mode(),"short");
     assert_eq!(s.capacity(),mem::size_of_val(&s)-1);
-    s.reserve_extra_internal(100-s.len());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"test");
     assert_eq!(s.get_mode(),"unique");
     assert!(s.capacity() >= 100);
     assert!(s.capacity() <= 150);
     assert_eq!(s.get_mode(),"unique");
-    s.reserve_extra_internal(0); //should do nothing
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); //should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert!(s.capacity() >= 100);
     assert!(s.capacity() <= 150);
 
     let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
-    s.reserve_extra_internal(100-s.len());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
     assert!(s.capacity() >= 100);
@@ -1392,7 +1459,12 @@ fn test_reserve_extra_internal() {
     
     let mut s = MAByteStringBuilder::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
     assert_eq!(s.get_mode(),"unique");
-    s.reserve_extra_internal(0); // should do nothing
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
@@ -1401,7 +1473,12 @@ fn test_reserve_extra_internal() {
     let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
     assert_eq!(s.get_mode(),"unique");
     // small reservation, doesn't require reallocation, because of the space reserved for the inline control block
-    s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
     assert_eq!(s.get_mode(),"unique");
 
 
