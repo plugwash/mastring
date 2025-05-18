@@ -1362,4 +1362,47 @@ fn test_reserve_extra_internal() {
     // of the inline control block
     s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
     assert_eq!(s.get_mode(),"unique");
+
+    let mut s = MAByteStringBuilder::from_slice(b"test");
+    assert_eq!(s.get_mode(),"short");
+    s.reserve_extra_internal(10);
+    assert_eq!(s,b"test");
+    assert_eq!(s.get_mode(),"short");
+    assert_eq!(s.capacity(),mem::size_of_val(&s)-1);
+    s.reserve_extra_internal(100-s.len());
+    assert_eq!(s,b"test");
+    assert_eq!(s.get_mode(),"unique");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    assert_eq!(s.get_mode(),"unique");
+    s.reserve_extra_internal(0); //should do nothing
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+
+    let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+    s.reserve_extra_internal(100-s.len());
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    let s2 = s.clone();
+    assert_eq!(s.get_mode(),"unique");
+    assert_eq!(s2.get_mode(),"unique");
+    
+    let mut s = MAByteStringBuilder::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
+    assert_eq!(s.get_mode(),"unique");
+    s.reserve_extra_internal(0); // should do nothing
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    
+    let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+    // small reservation, doesn't require reallocation, because of the space reserved for the inline control block
+    s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    assert_eq!(s.get_mode(),"unique");
+
+
 }
