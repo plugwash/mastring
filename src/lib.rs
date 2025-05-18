@@ -119,9 +119,11 @@ impl InnerLong {
                 //math wont overflow because a vec is limited to isize,
                 //which has half the range of usize.
                 let end = ptr.add(mincap);
-                let cbstart = mincap + end.align_offset(align_of::<AtomicUsize>());
+                let mut cbstart = mincap + end.align_offset(align_of::<AtomicUsize>());
                 let cbrequired = cbstart + size_of::<AtomicUsize>();
                 if cbrequired <= cap {
+                    let cbextraspace = (cap - cbrequired) & !(align_of::<AtomicUsize>()-1);
+                    cbstart += cbextraspace;
                     //println!("allocating control block");
                     cbptr = ptr.add(cbstart) as * mut AtomicUsize;
                     *cbptr = AtomicUsize::new(3);
