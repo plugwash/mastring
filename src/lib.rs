@@ -122,8 +122,11 @@ impl InnerLong {
                 let cbstart = mincap + end.align_offset(align_of::<AtomicUsize>());
                 let cbrequired = cbstart + size_of::<AtomicUsize>();
                 if cbrequired <= cap {
+                    //println!("allocating control block");
                     cbptr = ptr.add(cbstart) as * mut AtomicUsize;
                     *cbptr = AtomicUsize::new(3);
+                } else {
+                    //println!("no room for control block!");
                 }
             }
         }
@@ -147,6 +150,7 @@ impl InnerLong {
     // then it's capacity is left unchanged.
     #[inline]
     fn make_unique(&mut self, mincap: usize, allowcb: bool) {
+        //println!("in make_unique mincap={mincap} allowcb={allowcb}");
         if self.cap == 0 { // static string, we need to copy
             unsafe {
                 *self = InnerLong::from_slice(slice::from_raw_parts(self.ptr,self.len),allowcb,mincap);
@@ -387,6 +391,7 @@ impl MAByteString {
         unsafe {
             let mut len = self.long.len;
             let mincap;
+            //println!("entering reserve_extra_internal mode={}",self.get_mode());
             if len > isize::max as usize {  //inline string
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                 mincap = len + extracap;
@@ -394,12 +399,15 @@ impl MAByteString {
                     let mincap = max(mincap,SHORTLEN*2);
                     *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
                 } else {
+                    //println!("returning from reserve_extra_internal mode={}",self.get_mode());
                     return (self.short.data.as_mut_ptr(),len, true);
                 }
             } else {
                 mincap = len + extracap;
                 self.long.deref_mut().make_unique(mincap,true);
+                //println!("called make_unique mode={}",self.get_mode());
                 self.long.deref_mut().reserve(mincap);
+                //println!("returning from reserve_extra_internal mode={}",self.get_mode());
             }
             // if we reach here, we know it's a "long" String.
             return (self.long.ptr, len, false);
