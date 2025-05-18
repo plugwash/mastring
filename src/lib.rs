@@ -1289,3 +1289,77 @@ fn test_len_transmutation() {
     }
 }
 
+#[test]
+fn test_reserve_extra_internal() {
+    let mut s = MAByteString::from_static(b"test");
+    assert_eq!(s.get_mode(),"short");
+    s.reserve_extra_internal(10);
+    assert_eq!(s,b"test");
+    assert_eq!(s.get_mode(),"short");
+    assert_eq!(s.capacity(),mem::size_of_val(&s)-1);
+    s.reserve_extra_internal(100-s.len());
+    assert_eq!(s,b"test");
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    s.reserve_extra_internal(0); //should do nothing
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+
+    let mut s = MAByteString::from_static(b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"static");
+    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because
+                   // it's currently in static memory.
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+
+    let mut s = MAByteString::from_static(b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"static");
+    s.reserve_extra_internal(100-s.len());
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    let s2 = s.clone();
+    assert_eq!(s.get_mode(),"cbinline (shared)");
+    assert_eq!(s2.get_mode(),"cbinline (shared)");
+    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    //s now has a new buffer
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    //s2 now owns the buffer fomerly owned by s
+    assert_eq!(s2.get_mode(),"cbinline (unique)");
+    assert!(s2.capacity() >= 100);
+    assert!(s2.capacity() <= 150);
+
+    let mut s = MAByteString::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
+    assert_eq!(s.get_mode(),"unique");
+    s.reserve_extra_internal(0); // should do nothing
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"unique");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    let s2 = s.clone();
+    assert_eq!(s.get_mode(),"cbowned (shared)");
+    assert_eq!(s2.get_mode(),"cbowned (shared)");
+    s.reserve_extra_internal(0); // no extra space requested, but string must be copied because it's currently
+    //s now has a new buffer
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    //s2 now owns the buffer fomerly owned by s
+    assert_eq!(s2.get_mode(),"cbowned (unique)");
+    assert!(s2.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s2.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    
+    let mut s = MAByteString::from_slice(b"the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.get_mode(),"cbinline (unique)");
+    // small reservation, doesn't require reallocation, but does require getting rid
+    // of the inline control block
+    s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    assert_eq!(s.get_mode(),"unique");
+}
