@@ -113,6 +113,7 @@ impl InnerLong {
         mem::forget(v);
         let mut cbptr : * mut AtomicUsize = ptr::null_mut();
         if allowcb {
+            //println!("checking if we have room for a control block");
             unsafe {
                 //check if we have room for a control block.
                 //math wont overflow because a vec is limited to isize,
@@ -134,7 +135,7 @@ impl InnerLong {
         let len = max(s.len(),mincap);
         let mask = align_of::<AtomicUsize>() - 1;
         let veccap = ((len + mask) & !mask) + size_of::<AtomicUsize>();
-        //println!("len:{len} veccap:{veccap}");
+        //println!("len:{len} allowcb:{allowcb} veccap:{veccap}");
         let mut v = Vec::with_capacity(veccap);
         v.extend_from_slice(s);
         Self::from_vec(v,allowcb,mincap)
@@ -391,7 +392,7 @@ impl MAByteString {
                 mincap = len + extracap;
                 if mincap > SHORTLEN {
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
                 } else {
                     return (self.short.data.as_mut_ptr(),len, true);
                 }
@@ -413,7 +414,7 @@ impl MAByteString {
                 if mincap > SHORTLEN {
                     len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
                 }
             } else {
                 self.long.deref_mut().make_unique(mincap,true);
