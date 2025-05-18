@@ -3,6 +3,7 @@ use mastring::MAByteStringBuilder;
 use core::mem;
 use core::ops::Deref;
 use core::ops::DerefMut;
+#[cfg(miri)]
 use core::sync::atomic::AtomicPtr;
 
 #[cfg(test)]

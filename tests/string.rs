@@ -3,6 +3,7 @@ use mastring::MAStringBuilder;
 use core::mem;
 use core::ops::Deref;
 use core::ops::DerefMut;
+#[cfg(miri)]
 use std::sync::atomic::AtomicPtr;
 
 #[cfg(test)]
