@@ -173,6 +173,11 @@ fn test_into_vec() {
     let v = s.into_vec();
     assert_eq!(v.as_ptr(),ptr);
     assert_eq!(v.capacity(),capacity);
+
+    let s = MAByteStringBuilder::from_slice(b"test");
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_ne!(v.as_ptr(),ptr);
 }
 
 #[test]
