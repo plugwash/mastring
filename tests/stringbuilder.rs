@@ -1,4 +1,5 @@
 use mastring::MAStringBuilder;
+use mastring::MAByteStringBuilder;
 use mastring::MAString;
 use core::mem;
 use core::ops::Deref;
@@ -271,4 +272,55 @@ fn test_as_mut_slice() {
     let mut s = MAStringBuilder::from_slice("test");
     s.as_mut_str().make_ascii_uppercase();
     assert_eq!(s,"TEST");
+}
+
+#[test]
+fn test_into_vec() {
+    let s = MAString::from_slice("the quick brown fox jumped over the lazy dog");
+    let capacity = s.capacity();
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_eq!(v.as_ptr(),ptr);
+    #[cfg(miri)]
+    // miri sometimes gives us unaligned vecs, which can cause the
+    // MAString to end up in "unique" mode which in turn causes the
+    // capacity of the vec to be equal to that of the MAString
+    assert!(v.capacity() >= capacity);
+    #[cfg(not(miri))]
+    assert!(v.capacity() > capacity);
+
+    let s = MAString::from_static("the quick brown fox jumped over the lazy dog");
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_ne!(v.as_ptr(),ptr);
+}
+
+#[test]
+fn test_from_utf8_unchecked() {
+    unsafe {
+        let s = MAStringBuilder::from_utf8_unchecked(MAByteStringBuilder::from_slice(b"test"));
+        assert_eq!(s,"test");
+    }
+}
+
+#[test]
+fn test_from_utf8() {
+    let s = MAStringBuilder::from_utf8(MAByteStringBuilder::from_slice(b"test"));
+    assert_eq!(s,Ok(MAStringBuilder::from_slice("test")));
+    let s = MAStringBuilder::from_utf8(MAByteStringBuilder::from_slice(b"\xFF"));
+    assert_eq!(s.unwrap_err().as_bytes(),b"\xFF");
+}
+
+#[test]
+fn test_from_utf8_lossy() {
+    let s = MAStringBuilder::from_utf8_lossy(MAByteStringBuilder::from_slice(b"test"));
+    assert_eq!(s,MAStringBuilder::from_slice("test"));
+    let s = MAStringBuilder::from_utf8_lossy(MAByteStringBuilder::from_slice(b"\xFF"));
+    assert_eq!(s,MAStringBuilder::from_slice("\u{FFFD}"));
+}
+
+#[test]
+fn test_into_bytes() {
+    let s = MAStringBuilder::from_slice("the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.into_bytes(),b"the quick brown fox jumped over the lazy dog");
 }

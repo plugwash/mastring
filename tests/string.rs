@@ -3,6 +3,7 @@ use mastring::MAStringBuilder;
 use core::mem;
 use core::ops::Deref;
 use core::ops::DerefMut;
+use mastring::MAByteString;
 #[cfg(miri)]
 use std::sync::atomic::AtomicPtr;
 
@@ -433,4 +434,55 @@ fn test_as_mut_slice() {
     let mut s = MAString::from_static("test");
     s.as_mut_str().make_ascii_uppercase();
     assert_eq!(s,"TEST");
+}
+
+#[test]
+fn test_into_vec() {
+    let s = MAString::from_slice("the quick brown fox jumped over the lazy dog");
+    let capacity = s.capacity();
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_eq!(v.as_ptr(),ptr);
+    #[cfg(miri)]
+    // miri sometimes gives us unaligned vecs, which can cause the
+    // MAString to end up in "unique" mode which in turn causes the
+    // capacity of the vec to be equal to that of the MAString
+    assert!(v.capacity() >= capacity);
+    #[cfg(not(miri))]
+    assert!(v.capacity() > capacity);
+
+    let s = MAString::from_static("the quick brown fox jumped over the lazy dog");
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_ne!(v.as_ptr(),ptr);
+}
+
+#[test]
+fn test_from_utf8_unchecked() {
+    unsafe {
+        let s = MAString::from_utf8_unchecked(MAByteString::from_static(b"test"));
+        assert_eq!(s,"test");
+    }
+}
+
+#[test]
+fn test_from_utf8() {
+    let s = MAString::from_utf8(MAByteString::from_static(b"test"));
+    assert_eq!(s,Ok(MAString::from_static("test")));
+    let s = MAString::from_utf8(MAByteString::from_static(b"\xFF"));
+    assert_eq!(s.unwrap_err().as_bytes(),b"\xFF");
+}
+
+#[test]
+fn test_from_utf8_lossy() {
+    let s = MAString::from_utf8_lossy(MAByteString::from_static(b"test"));
+    assert_eq!(s,MAString::from_static("test"));
+    let s = MAString::from_utf8_lossy(MAByteString::from_static(b"\xFF"));
+    assert_eq!(s,MAString::from_static("\u{FFFD}"));
+}
+
+#[test]
+fn test_into_bytes() {
+    let s = MAString::from_static("the quick brown fox jumped over the lazy dog");
+    assert_eq!(s.into_bytes(),b"the quick brown fox jumped over the lazy dog");
 }
