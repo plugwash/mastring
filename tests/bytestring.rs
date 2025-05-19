@@ -432,7 +432,12 @@ fn test_add_and_eq() {
 fn test_debug() {
     let s  = MAByteString::from_static(b"test \" \\ \x19\x7f\x80\xff");
     let sd = format!("{:?}",s);
-    assert_eq!(sd,r#"b"test \" \\ \x19\x7f\x80\xff""#)
+    assert_eq!(sd,r#"b"test \" \\ \x19\x7f\x80\xff""#);
+
+    let s  = MAByteString::from_static(b"test \" \\ \x19\x7f\x80\xffhello");
+    let sd = format!("{:?}",s);
+    assert_eq!(sd,r#"b"test \" \\ \x19\x7f\x80\xffhello""#);
+
 }
 
 
