@@ -412,18 +412,22 @@ fn test_add_and_eq() {
     s = s + b"foo";
     assert_mode!(s,"short");
     assert_eq!(s,b"testfoo");
+    assert_eq!(s,b"testfoo" as &[u8]);
     s = s + b"the quick brown fox jumped over the lazy dog";
     assert_mode!(s,"cbinline (unique)");
     assert_eq!(s,b"testfoothe quick brown fox jumped over the lazy dog");
+    assert_eq!(s,b"testfoothe quick brown fox jumped over the lazy dog" as &[u8]);
     assert_eq!(s,MAByteString::from_slice(&s));
 
     let mut s  = MAByteString::from_static(b"test");
     s += b"foo";
     assert_eq!("short",s.get_mode());
     assert_eq!(b"testfoo",s);
+    assert_eq!(b"testfoo" as &[u8],s);
     s += b"the quick brown fox jumped over the lazy dog";
     assert_mode!(s,"cbinline (unique)");
     assert_eq!(b"testfoothe quick brown fox jumped over the lazy dog",s);
+    assert_eq!(b"testfoothe quick brown fox jumped over the lazy dog" as &[u8],s);
     assert_eq!(MAByteString::from_slice(&s),s);
 
 }
