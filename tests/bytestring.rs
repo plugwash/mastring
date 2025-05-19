@@ -314,6 +314,12 @@ fn test_into_vec() {
     let ptr = s.as_ptr();
     let v = s.into_vec();
     assert_ne!(v.as_ptr(),ptr);
+
+    let s = MAByteString::from_static(b"test");
+    let ptr = s.as_ptr();
+    let v = s.into_vec();
+    assert_ne!(v.as_ptr(),ptr);
+
 }
 
 #[test]
