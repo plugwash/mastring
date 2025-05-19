@@ -428,4 +428,9 @@ fn test_debug() {
     assert_eq!(sd,r#""test \" \\ ""#)
 }
 
-
+#[test]
+fn test_as_mut_slice() {
+    let mut s = MAString::from_static("test");
+    s.as_mut_str().make_ascii_uppercase();
+    assert_eq!(s,"TEST");
+}
