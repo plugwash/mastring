@@ -283,20 +283,14 @@ fn test_as_mut_slice() {
 
 #[test]
 fn test_into_vec() {
-    let s = MAString::from_slice("the quick brown fox jumped over the lazy dog");
+    let s = MAStringBuilder::from_slice("the quick brown fox jumped over the lazy dog");
     let capacity = s.capacity();
     let ptr = s.as_ptr();
     let v = s.into_vec();
     assert_eq!(v.as_ptr(),ptr);
-    #[cfg(miri)]
-    // miri sometimes gives us unaligned vecs, which can cause the
-    // MAString to end up in "unique" mode which in turn causes the
-    // capacity of the vec to be equal to that of the MAString
-    assert!(v.capacity() >= capacity);
-    #[cfg(not(miri))]
-    assert!(v.capacity() > capacity);
+    assert_eq!(v.capacity(),capacity);
 
-    let s = MAString::from_static("the quick brown fox jumped over the lazy dog");
+    let s = MAStringBuilder::from_slice("test");
     let ptr = s.as_ptr();
     let v = s.into_vec();
     assert_ne!(v.as_ptr(),ptr);
