@@ -261,6 +261,13 @@ fn test_add_and_eq() {
 }
 
 #[test]
+fn test_display() {
+    let s  = MAStringBuilder::from_slice("test \" \\ ");
+    let sd = format!("{}",s);
+    assert_eq!(sd,r#"test " \ "#)
+}
+
+#[test]
 fn test_debug() {
     let s  = MAStringBuilder::from_slice("test \" \\ ");
     let sd = format!("{:?}",s);
