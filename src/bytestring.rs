@@ -146,12 +146,12 @@ impl MAByteString {
 
     pub fn from_builder(b : MAByteStringBuilder) -> Self {
         unsafe {
-            let len = b.long.len;
+            let len = b.long().len;
             if len > isize::max as usize {
-                return Self::from_short( b.short );
+                return Self::from_short( b.into_short() );
             }
-            let cap = b.long.cap;
-            let ptr = b.long.ptr;
+            let cap = b.long().cap;
+            let ptr = b.long().ptr;
             mem::forget(b);
             //check if we have room for a control block.
             //math wont overflow because a vec is limited to isize,
