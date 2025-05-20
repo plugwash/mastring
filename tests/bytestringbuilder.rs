@@ -283,4 +283,9 @@ fn test_debug() {
     assert_eq!(sd,r#"b"test \" \\ \x19\x7f\x80\xff""#)
 }
 
+#[test]
+fn test_size() {
+    assert_eq!(mem::size_of::<MAByteStringBuilder>(),mem::size_of::<usize>()*4);
+    assert_eq!(mem::size_of::<MAByteStringBuilder>(),mem::size_of::<usize>()*4);
+}
 

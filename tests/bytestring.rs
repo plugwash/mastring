@@ -107,7 +107,7 @@ fn test_get_mode() {
     assert_mode!(s,"cbinline (unique)");
     let s2 = s.clone();
     assert_mode!(s,"cbinline (shared)");
-    assert_eq!(s2.get_mode(),"cbinline (shared)");
+    assert_mode!(s2,"cbinline (shared)");
 }
 
 #[test]
@@ -146,14 +146,14 @@ fn test_reserve() {
     assert!(s.capacity() <= 150);
     let s2 = s.clone();
     assert_mode!(s,"cbinline (shared)");
-    assert_eq!(s2.get_mode(),"cbinline (shared)");
+    assert_mode!(s2,"cbinline (shared)");
     s.reserve(10); // no extra space requested, but string must be copied because it's currently in static memory.
     //s now has a new buffer
     assert_mode!(s,"cbinline (unique)");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
     assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
     //s2 now owns the buffer fomerly owned by s
-    assert_eq!(s2.get_mode(),"cbinline (unique)");
+    assert_mode!(s2,"cbinline (unique)");
     assert!(s2.capacity() >= 100);
     assert!(s2.capacity() <= 150);
 
@@ -166,14 +166,14 @@ fn test_reserve() {
     assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
     let s2 = s.clone();
     assert_mode!(s,"cbowned (shared)");
-    assert_eq!(s2.get_mode(),"cbowned (shared)");
+    assert_mode!(s2,"cbowned (shared)");
     s.reserve(10); // no extra space requested, but string must be copied because it's currently in static memory.
     //s now has a new buffer
     assert_mode!(s,"cbinline (unique)");
     assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
     assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
     //s2 now owns the buffer fomerly owned by s
-    assert_eq!(s2.get_mode(),"cbowned (unique)");
+    assert_mode!(s2,"cbowned (unique)");
     assert!(s2.capacity() >= "the quick brown fox jumped over the lazy dog".len());
     assert!(s2.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
 
@@ -212,7 +212,7 @@ fn test_capacity() {
     let s2 = s.clone();
     assert_mode!(s,"cbowned (shared)");
     assert_eq!(s.capacity(),veccap);
-    assert_eq!(s2.get_mode(),"cbowned (shared)");
+    assert_mode!(s2,"cbowned (shared)");
     assert_eq!(s2.capacity(),veccap);
 
     let mut v = Vec::with_capacity(100);
@@ -328,7 +328,7 @@ fn test_clone_and_drop() {
    assert_mode!(s,"short");
    let s2 = s.clone();
    assert_mode!(s,"short");
-   assert_eq!(s2.get_mode(),"short");
+   assert_mode!(s2,"short");
    drop(s2);
    assert_mode!(s,"short");
    
@@ -336,7 +336,7 @@ fn test_clone_and_drop() {
    assert_mode!(s,"static");
    let s2 = s.clone();
    assert_mode!(s,"static");
-   assert_eq!(s2.get_mode(),"static");
+   assert_mode!(s2,"static");
    drop(s2);
    assert_mode!(s,"static");
    
@@ -352,12 +352,12 @@ fn test_clone_and_drop() {
    assert_mode!(s,"unique");
    let s2 = s.clone();
    assert_mode!(s,"cbowned (shared)");
-   assert_eq!(s2.get_mode(),"cbowned (shared)");
+   assert_mode!(s2,"cbowned (shared)");
    drop(s2);
    assert_mode!(s,"cbowned (unique)");
    let s2 = s.clone();
    assert_mode!(s,"cbowned (shared)");
-   assert_eq!(s2.get_mode(),"cbowned (shared)");
+   assert_mode!(s2,"cbowned (shared)");
    drop(s2);
    assert_mode!(s,"cbowned (unique)");
 
