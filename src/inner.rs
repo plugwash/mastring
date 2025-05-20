@@ -10,6 +10,7 @@ use core::ops::Add;
 use core::slice;
 use core::cmp::max;
 use core::cmp::min;
+use crate::limitedusize::LimitedUSize;
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -180,5 +181,19 @@ pub (super) struct InnerShort {
     pub (super) len: u8,
 }
 
+// This defines a layout with the niche we want and the interior mutability
+// we need.
+#[repr(C)]
+pub (super) struct InnerNiche {
 
+    //these fields are not meant to be used directly, merely to define
+    //the data type layout. 
+    #[cfg(target_endian="big")]
+    _len: usize,
+    _cap: usize,
+    _ptr: * mut u8,
+    _cbptr: AtomicPtr<AtomicUsize>,
+    #[cfg(target_endian="little")]
+    _len: LimitedUSize,
+}
 

@@ -16,6 +16,7 @@ use alloc::str;
 use alloc::fmt;
 use crate::inner::InnerLong;
 use crate::inner::InnerShort;
+use crate::inner::InnerNiche;
 use crate::MAByteString;
 use crate::bytestring::bytes_debug;
 use crate::inner::SHORTLEN;
@@ -23,17 +24,9 @@ use crate::limitedusize::LimitedUSize;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::AtomicPtr;
 
-#[repr(C)]
+#[repr(transparent)]
 pub struct MAByteStringBuilder {
-    //these fields are not meant to be used directly, merely to define
-    //the data type layout. 
-    #[cfg(target_endian="big")]
-    _len: usize,
-    _cap: usize,
-    _ptr: * mut u8,
-    _cbptr: AtomicPtr<AtomicUsize>,
-    #[cfg(target_endian="little")]
-    _len: LimitedUSize,
+    inner: InnerNiche,
 }
 unsafe impl Send for MAByteStringBuilder {}
 unsafe impl Sync for MAByteStringBuilder {}
