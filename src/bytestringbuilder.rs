@@ -1,0 +1,402 @@
+use core::sync::atomic::Ordering;
+use core::mem::size_of;
+use core::mem::ManuallyDrop;
+use core::mem;
+use core::ptr;
+use core::ops::Deref;
+use core::ops::DerefMut;
+use core::ops::Add;
+use core::ops::AddAssign;
+use core::slice;
+use core::cmp::max;
+
+extern crate alloc;
+use alloc::vec::Vec;
+use alloc::str;
+use alloc::fmt;
+use crate::inner::InnerLong;
+use crate::inner::InnerShort;
+use crate::MAByteString;
+use crate::bytestring::bytes_debug;
+use crate::inner::SHORTLEN;
+use core::sync::atomic::AtomicPtr;
+
+#[repr(C)]
+pub union MAByteStringBuilder {
+    pub (super) short: InnerShort,
+    pub (super) long: ManuallyDrop<InnerLong>,
+}
+unsafe impl Send for MAByteStringBuilder {}
+unsafe impl Sync for MAByteStringBuilder {}
+
+
+impl MAByteStringBuilder {
+    /// Creates a new MAByteStringBuilder.
+    /// This will not allocate
+    pub const fn new() -> Self {
+        MAByteStringBuilder { short: InnerShort { data: [0; SHORTLEN] , len: 0x80 } }
+    }
+
+    /// Creates a MAByteStringBuilder from a slice.
+    /// This will allocate if the string cannot be stored as a short string,
+    pub fn from_slice(s: &[u8]) -> Self {
+        let len = s.len();
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
+            data[0..len].copy_from_slice(&s);
+            MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+        } else {
+            MAByteStringBuilder { long : ManuallyDrop::new(InnerLong::from_slice(s,false,0)) }
+        }
+    }
+
+    /// create a MAByteStringBuilder from a Vec.
+    /// This will not allocate.
+    /// If the string can be represented as a  short string then it will be stored
+    /// as one and the memory owned by the Vec will be freed.
+    pub fn from_vec(v: Vec<u8>) -> Self {
+        let len = v.len();
+        if len <= SHORTLEN {
+            let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
+            data[0..len].copy_from_slice(&v);
+            MAByteStringBuilder { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+        } else {
+            MAByteStringBuilder { long: ManuallyDrop::new(InnerLong::from_vec(v,false,0)) }
+        }
+    }
+
+    pub fn from_mabs(mut s: MAByteString) -> Self {
+        unsafe {
+            let len = s.long().len;
+            if len > isize::max as usize {  //inline string
+                MAByteStringBuilder { short: s.into_short() }
+            } else {
+                s.long_mut().make_unique(0,false);
+                MAByteStringBuilder { long: ManuallyDrop::new(s.into_long()) }
+            }
+        }
+    }
+
+    /// Return the current mode of the MAByteStringBuilder (for testing/debugging)
+    /// This includes logic to detect states that are valid for MAByteString, but
+    /// not for MAByteStringBuilder.
+    pub fn get_mode(&self) -> &'static str {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                "short"
+            } else if self.long.cap == 0 { // static string
+                "static (invalid)"
+            } else {
+                let cbptr = self.long.cbptr.load(Ordering::Acquire);
+                if cbptr.is_null() {
+                    "unique"
+                } else if ((*cbptr).load(Ordering::Relaxed) & 1) == 0 {
+                    "cbowned (inavlid)"
+                } else {
+                    "cbinline (invalid)"
+                }
+            }
+        }
+    }
+
+    /// ensure there is capacity for at least extracap more bytes
+    /// beyond the current length of the string
+    /// and return the pointer and len, and the flag that indicates
+    /// whether we are in short mode this saves duplicate
+    /// work in the functions that need to reserve space and
+    /// then use it.
+    fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
+        unsafe {
+            let mut len = self.long.len;
+            let mincap;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                mincap = len + extracap;
+                if mincap > SHORTLEN {
+                    let mincap = max(mincap,SHORTLEN*2);
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                } else {
+                    return (self.short.data.as_mut_ptr(),len, true);
+                }
+            } else {
+                mincap = len + extracap;
+                self.long.deref_mut().reserve(mincap,false);
+            }
+            // if we reach here, we know it's a "long" String.
+            return (self.long.ptr, len, false);
+        }
+    }
+
+    /// ensure there is capacity for at least mincap bytes
+    pub fn reserve(&mut self, mincap: usize) {
+        unsafe {
+            let mut len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                if mincap > SHORTLEN {
+                    len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                    let mincap = max(mincap,SHORTLEN*2);
+                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),false,mincap)) }
+                }
+            } else {
+                self.long.deref_mut().reserve(mincap,false);
+            }
+        }
+    }
+
+    /// report the "capacity" of the string.
+    pub fn capacity(&self) -> usize {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                SHORTLEN
+            } else {
+                self.long.cap
+            }
+        }
+    }
+
+    // clears the string, retaining it's capacity.
+    pub fn clear(&mut self) {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                self.short.len = 0x80;
+            } else {
+                self.long.len = 0;
+            }
+        }
+    }
+
+    /// convert the MAByteStringBuilder into a Vec, this may allocate.
+    pub fn into_vec(self) -> Vec<u8> {
+        unsafe {
+            let mut len = self.long.len;
+            if len > isize::max as usize {  //inline string
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                return slice::from_raw_parts(self.short.data.as_ptr(), len).to_vec();
+            }
+            let cap = self.long.cap;
+            let ptr = self.long.ptr;
+            mem::forget(self);
+            return Vec::from_raw_parts(ptr,len,cap);
+        }
+    }
+
+    
+
+}
+
+impl Drop for MAByteStringBuilder {
+    fn drop(&mut self) {
+        unsafe {
+            let len = self.long.len;
+            if len > isize::max as usize { return }; //inline string
+            let cap = self.long.cap;
+            // we hold the only reference, turn it back into a vec so rust will free it.
+            let _ = Vec::from_raw_parts(self.long.ptr, self.long.len, cap);
+        }
+    }
+}
+
+impl Clone for MAByteStringBuilder {
+    fn clone(&self) -> Self {
+        MAByteStringBuilder::from_slice(self)
+    }
+}
+
+impl Deref for MAByteStringBuilder {
+   type Target = [u8];
+   #[inline]
+   fn deref(&self) -> &[u8] {
+        unsafe {
+            let mut len = self.long.len;
+            let ptr = if len > isize::max as usize {
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                self.short.data.as_ptr()
+            } else {
+                self.long.ptr
+            };
+            slice::from_raw_parts(ptr,len)
+        }
+   }
+}
+
+impl DerefMut for MAByteStringBuilder {
+   #[inline]
+   fn deref_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let mut len = self.long.len;
+            let ptr = if len > isize::max as usize {
+                len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
+                self.short.data.as_mut_ptr()
+            } else {
+                self.long.ptr
+            };
+            slice::from_raw_parts_mut(ptr,len)
+        }
+   }
+}
+
+impl Add<&[u8]> for MAByteStringBuilder {
+    type Output = Self;
+    fn add(mut self, rhs: &[u8]) -> Self {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<&[u8]> for MAByteStringBuilder {
+    fn add_assign(&mut self, other: &[u8]) {
+        unsafe {
+            let (ptr, mut len, short) = self.reserve_extra_internal(other.len());
+            ptr::copy_nonoverlapping(other.as_ptr(), ptr.add(len), other.len());
+            len += other.len();
+            if short {
+                self.short.len = (len + 0x80) as u8;
+            } else {
+                self.long.len = len;
+            }
+        }
+    }
+}
+
+impl fmt::Debug for MAByteStringBuilder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        bytes_debug(self,f)
+    }
+}
+
+impl PartialEq for MAByteStringBuilder {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return self.deref() == other.deref();
+    }
+}
+impl Eq for MAByteStringBuilder {}
+
+impl PartialEq<&[u8]> for MAByteStringBuilder {
+    fn eq(&self, other : &&[u8]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl PartialEq<MAByteStringBuilder> for &[u8] {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return *self == other.deref();
+    }
+}
+
+impl<const N: usize> PartialEq<&[u8;N]> for MAByteStringBuilder {
+    fn eq(&self, other : &&[u8;N]) -> bool {
+         return self.deref() == *other;
+    }
+}
+
+impl<const N: usize>  PartialEq<MAByteStringBuilder> for &[u8;N] {
+    fn eq(&self, other : &MAByteStringBuilder) -> bool {
+         return *self == other.deref();
+    }
+}
+
+#[derive(Clone)]
+pub struct MAString {
+    inner: MAByteString,
+}
+
+#[cfg(test)]
+macro_rules! assert_mode {
+    ($s:expr, $expectedmode:expr) => {
+        #[allow(unused_labels)] // the label is only used under miri.
+        'skipcheck: {
+            let mode = $s.get_mode();
+            let expectedmode = $expectedmode;
+            #[cfg(miri)]
+            if (($s.as_ptr() as usize) & (mem::align_of::<AtomicPtr<usize>>() - 1)) != 0 {
+                //miri sometimes gives us unaligned vecs, this can lead to
+                //control blocks not fitting inline. This should't break correctness, but
+                //it can result in strings being in a different mode from expected.
+                if (mode == "unique") && (expectedmode == "cbinline (unique)") { break 'skipcheck }
+                if (mode == "cbowned (unique)") && (expectedmode == "cbinline (unique)") { break 'skipcheck }
+                if (mode == "cbowned (shared)") && (expectedmode == "cbinline (shared)") { break 'skipcheck }
+            }
+            assert_eq!(mode,expectedmode);
+        }
+    }
+}
+
+#[test]
+fn test_reserve_extra_internal() {
+    let mut s = MAByteStringBuilder::from_slice(b"test");
+    assert_mode!(s,"short");
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(10);
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, true);
+    assert_eq!(s,b"test");
+    assert_mode!(s,"short");
+    assert_eq!(s.capacity(),mem::size_of_val(&s)-1);
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
+    assert_eq!(s,b"test");
+    assert_mode!(s,"unique");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    assert_mode!(s,"unique");
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); //should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+
+    let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
+    assert_mode!(s,"unique");
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(100-s.len());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_mode!(s,"unique");
+    assert!(s.capacity() >= 100);
+    assert!(s.capacity() <= 150);
+    let s2 = s.clone();
+    assert_mode!(s,"unique");
+    assert_mode!(s2,"unique");
+    
+    let mut s = MAByteStringBuilder::from_vec(b"the quick brown fox jumped over the lazy dog".to_vec());
+    assert_mode!(s,"unique");
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(0); // should do nothing
+    assert_eq!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
+    assert_eq!(s,b"the quick brown fox jumped over the lazy dog");
+    assert_mode!(s,"unique");
+    assert!(s.capacity() >= "the quick brown fox jumped over the lazy dog".len());
+    assert!(s.capacity() <= "the quick brown fox jumped over the lazy dog".len() + 50);
+    
+    let mut s = MAByteStringBuilder::from_slice(b"the quick brown fox jumped over the lazy dog");
+    assert_mode!(s,"unique");
+    // small reservation, doesn't require reallocation, because of the space reserved for the inline control block
+    let oldptr = s.as_ptr();
+    let oldlen = s.len();
+    let (ptr, len, isshort) = s.reserve_extra_internal(b"the quick brown fox jumped over the lazy dog".len()+mem::size_of::<usize>());
+    assert_ne!(ptr as *const u8,oldptr);
+    assert_eq!(len,oldlen);
+    assert_eq!(isshort, false);
+    assert_mode!(s,"unique");
+
+
+}
+
