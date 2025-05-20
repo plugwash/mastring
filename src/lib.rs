@@ -60,6 +60,9 @@
 //! count.
 
 #![no_std]
+
+mod limitedusize;
+
 use core::sync::atomic::AtomicPtr;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
@@ -84,6 +87,7 @@ use alloc::str;
 use alloc::string::String;
 use alloc::string::FromUtf8Error;
 use alloc::fmt;
+use crate::limitedusize::LimitedUSize;
 
 //contol block values
 //stores reference count * 2
@@ -252,19 +256,67 @@ struct InnerShort {
 
 ///
 #[repr(C)]
-pub union MAByteString {
-    short: InnerShort,
-    long: ManuallyDrop<InnerLong>,
+pub struct MAByteString {
+    //these fields are not meant to be used directly, merely to define
+    //the data type layout. 
+    #[cfg(target_endian="big")]
+    _len: usize,
+    _cap: usize,
+    _ptr: * mut u8,
+    _cbptr: AtomicPtr<AtomicUsize>,
+    #[cfg(target_endian="little")]
+    _len: LimitedUSize,
 }
+
 unsafe impl Send for MAByteString {}
 unsafe impl Sync for MAByteString {}
 
 
 impl MAByteString {
+    #[inline]
+    const unsafe fn long(&self) -> &InnerLong {
+        unsafe { &*(self as *const Self as *const InnerLong) }
+    }
+
+    #[inline]
+    const unsafe fn short(&self) -> &InnerShort {
+        unsafe { &*(self as *const Self as *const InnerShort ) }
+    }
+
+    #[inline]
+    const unsafe fn long_mut(&mut self) -> &mut InnerLong {
+        unsafe { &mut *(self as *mut Self as *mut InnerLong ) }
+    }
+
+    #[inline]
+    const unsafe fn short_mut(&mut self) -> &mut InnerShort {
+        unsafe { &mut *(self as *mut Self as *mut InnerShort ) }
+    }
+
+    #[inline]
+    const fn from_long(long : InnerLong) -> Self {
+        unsafe { mem::transmute(long) }
+    }
+
+    #[inline]
+    const fn from_short(short : InnerShort) -> Self {
+        unsafe { mem::transmute(short) }
+    }
+
+    #[inline]
+    const fn into_long(self) -> InnerLong {
+        unsafe { mem::transmute(self) }
+    }
+
+    #[inline]
+    const fn into_short(self) -> InnerShort {
+        unsafe { mem::transmute(self) }
+    }
+
     /// Creates a new MAByteString.
     /// This will not allocate
     pub const fn new() -> Self {
-        MAByteString { short: InnerShort { data: [0; SHORTLEN] , len: 0x80 } }
+        Self::from_short( InnerShort { data: [0; SHORTLEN] , len: 0x80 } )
     }
 
     /// Creates a MAByteString from a slice.
@@ -276,9 +328,9 @@ impl MAByteString {
         if len <= SHORTLEN {
             let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&s);
-            MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+            Self::from_short( InnerShort { data: data, len: len as u8 + 0x80 } )
         } else {
-            MAByteString { long: ManuallyDrop::new(InnerLong::from_slice(s, true,0)) }
+            Self::from_long( InnerLong::from_slice(s, true,0))
         }
     }
 
@@ -298,9 +350,9 @@ impl MAByteString {
         if len <= SHORTLEN {
             let mut data : [u8; SHORTLEN] = [0; SHORTLEN];
             data[0..len].copy_from_slice(&v);
-            MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+            Self::from_short( InnerShort { data: data, len: len as u8 + 0x80 } )
         } else {
-            MAByteString { long: ManuallyDrop::new(InnerLong::from_vec(v, true, 0)) }
+            Self::from_long( InnerLong::from_vec(v, true, 0))
         }
     }
 
@@ -317,9 +369,9 @@ impl MAByteString {
                  i += 1;
             }
             //data[0..len].copy_from_slice(&s); // doesn't work in const fn
-            MAByteString { short: InnerShort { data: data, len: len as u8 + 0x80 } }
+            Self::from_short( InnerShort { data: data, len: len as u8 + 0x80 } )
         } else {
-            MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: 0, ptr: s.as_ptr() as *mut u8, cbptr: AtomicPtr::new(ptr::null_mut()) }) }
+            Self::from_long( InnerLong { len : len, cap: 0, ptr: s.as_ptr() as *mut u8, cbptr: AtomicPtr::new(ptr::null_mut()) })
         }
     }
 
@@ -327,7 +379,7 @@ impl MAByteString {
         unsafe {
             let len = b.long.len;
             if len > isize::max as usize {
-                return MAByteString { short: b.short };
+                return Self::from_short( b.short );
             }
             let cap = b.long.cap;
             let ptr = b.long.ptr;
@@ -343,7 +395,7 @@ impl MAByteString {
                 cbptr = ptr.add(cbstart) as * mut AtomicUsize;
                 *cbptr = AtomicUsize::new(3);
             }
-            MAByteString { long: ManuallyDrop::new(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) }) }
+            Self::from_long(InnerLong { len : len, cap: cap, ptr: ptr, cbptr: AtomicPtr::new(cbptr) })
         }
     }
 
@@ -352,13 +404,13 @@ impl MAByteString {
     /// changes to them are not considered a semver break.
     pub fn get_mode(&self) -> &'static str {
         unsafe {
-            let len = self.long.len;
+            let len = self.long().len;
             if len > isize::max as usize {  //inline string
                 "short"
-            } else if self.long.cap == 0 { // static string
+            } else if self.long().cap == 0 { // static string
                 "static"
             } else {
-                let cbptr = self.long.cbptr.load(Ordering::Acquire);
+                let cbptr = self.long().cbptr.load(Ordering::Acquire);
                 if cbptr.is_null() {
                     "unique"
                 } else { 
@@ -391,7 +443,7 @@ impl MAByteString {
     /// then use it.
     fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
         unsafe {
-            let mut len = self.long.len;
+            let mut len = self.long().len;
             let mincap;
             //println!("entering reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
             if len > isize::max as usize {  //inline string
@@ -399,36 +451,36 @@ impl MAByteString {
                 mincap = len + extracap;
                 if mincap > SHORTLEN {
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
+                    *self = Self::from_long( InnerLong::from_slice(slice::from_raw_parts(self.short().data.as_ptr(),len),true,mincap)) 
                 } else {
                     //println!("returning from reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
-                    return (self.short.data.as_mut_ptr(),len, true);
+                    return (self.short_mut().data.as_mut_ptr(),len, true);
                 }
             } else {
                 mincap = len + extracap;
-                self.long.deref_mut().make_unique(mincap,true);
+                self.long_mut().make_unique(mincap,true);
                 //println!("called make_unique mode={} capacity={}",self.get_mode(),self.capacity());
-                self.long.deref_mut().reserve(mincap,true);
+                self.long_mut().reserve(mincap,true);
                 //println!("returning from reserve_extra_internal mode={} capacity={}",self.get_mode(),self.capacity());
             }
             // if we reach here, we know it's a "long" String.
-            return (self.long.ptr, len, false);
+            return (self.long().ptr, len, false);
         }
     }
 
     /// ensure there is capacity for at least mincap bytes
     pub fn reserve(&mut self, mincap: usize) {
         unsafe {
-            let mut len = self.long.len;
+            let mut len = self.long().len;
             if len > isize::max as usize {  //inline string
                 if mincap > SHORTLEN {
                     len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
                     let mincap = max(mincap,SHORTLEN*2);
-                    *self = Self { long: ManuallyDrop::new(InnerLong::from_slice(slice::from_raw_parts(self.short.data.as_ptr(),len),true,mincap)) }
+                    *self = Self::from_long(InnerLong::from_slice(slice::from_raw_parts(self.short().data.as_ptr(),len),true,mincap))
                 }
             } else {
-                self.long.deref_mut().make_unique(mincap,true);
-                self.long.deref_mut().reserve(mincap,true);
+                self.long_mut().make_unique(mincap,true);
+                self.long_mut().reserve(mincap,true);
             }
         }
     }
@@ -438,13 +490,13 @@ impl MAByteString {
     /// will not allocate. Returns zero for static strings.
     pub fn capacity(&self) -> usize {
         unsafe {
-            let len = self.long.len;
+            let len = self.long().len;
             if len > isize::max as usize {  //inline string
                 //println!("short string");
                 SHORTLEN
             } else {
-                //println!("long string, self.long.cap = {}",self.long.cap);
-                self.long.usablecap()
+                //println!("long string, self.long().cap = {}",self.long().cap);
+                self.long().usablecap()
             }
         }
     }
@@ -456,20 +508,20 @@ impl MAByteString {
     // reset to an empty short string.
     pub fn clear(&mut self) {
         unsafe {
-            let len = self.long.len;
+            let len = self.long().len;
             if len > isize::max as usize {  //inline string
-                self.short.len = 0x80;
-            } else if self.long.cap == 0 { // static string
-                self.short.len = 0x80;
+                self.short_mut().len = 0x80;
+            } else if self.long().cap == 0 { // static string
+                self.short_mut().len = 0x80;
             } else {
-                let cbptr = self.long.cbptr.load(Ordering::Relaxed);
+                let cbptr = self.long().cbptr.load(Ordering::Relaxed);
                 if cbptr.is_null() { // unique ownership mode.
-                    self.long.len = 0;
+                    self.long_mut().len = 0;
                 } else {
                     let refcount = (*cbptr).load(Ordering::Relaxed) >> 1;
                     if refcount == 1 {
                         // we are the only owner of the String
-                        self.long.len = 0;
+                        self.long_mut().len = 0;
                     } else {
                         // there are other owners, we need to seperate ourselves from them.
                         *self = Self::new();
@@ -482,14 +534,14 @@ impl MAByteString {
     /// convert the MAByteStirng into a Vec, this may allocate.
     pub fn into_vec(mut self) -> Vec<u8> {
         unsafe {
-            let mut len = self.long.len;
+            let mut len = self.long().len;
             if len > isize::max as usize {  //inline string
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
-                return slice::from_raw_parts(self.short.data.as_ptr(), len).to_vec();
+                return slice::from_raw_parts(self.short().data.as_ptr(), len).to_vec();
             }
-            self.long.deref_mut().make_unique(0,true);
-            let cap = self.long.cap;
-            let ptr = self.long.ptr;
+            self.long_mut().make_unique(0,true);
+            let cap = self.long().cap;
+            let ptr = self.long().ptr;
             mem::forget(self);
             return Vec::from_raw_parts(ptr,len,cap);
         }
@@ -499,9 +551,9 @@ impl MAByteString {
 impl Drop for MAByteString {
     fn drop(&mut self) {
         unsafe {
-            let len = self.long.len;
+            let len = self.long().len;
             if len > isize::max as usize { return }; //inline string
-            ManuallyDrop::drop(&mut self.long);
+            drop(ptr::read(self.long_mut())); // call drop for the inner type.
         }
     }
 }
@@ -509,16 +561,16 @@ impl Drop for MAByteString {
 impl Clone for MAByteString{
     fn clone(&self) -> Self {
         unsafe {
-            let len = self.long.len;
+            let len = self.long().len;
             if len > isize::max as usize {  //inline string
-                MAByteString { short : self.short }
-            } else if self.long.cap == 0 { // static string
-                MAByteString { long : ManuallyDrop::new(InnerLong { len : len, cap: 0, ptr: self.long.ptr, cbptr: AtomicPtr::new(ptr::null_mut()) }) }
+                MAByteString::from_short(*self.short())
+            } else if self.long().cap == 0 { // static string
+                MAByteString::from_long( InnerLong { len : len, cap: 0, ptr: self.long().ptr, cbptr: AtomicPtr::new(ptr::null_mut()) })
             } else {
-                let mut cbptr = self.long.cbptr.load(Ordering::Acquire);
+                let mut cbptr = self.long().cbptr.load(Ordering::Acquire);
                 if cbptr.is_null() {
                     let newcbptr = Box::into_raw(Box::new(AtomicUsize::new(2)));
-                    if let Err(cxcbptr) = self.long.cbptr.compare_exchange(ptr::null_mut(),newcbptr,Ordering::AcqRel,Ordering::Acquire) {
+                    if let Err(cxcbptr) = self.long().cbptr.compare_exchange(ptr::null_mut(),newcbptr,Ordering::AcqRel,Ordering::Acquire) {
                         let _ = Box::from_raw(newcbptr);
                         cbptr = cxcbptr;
                     } else  {
@@ -529,7 +581,7 @@ impl Clone for MAByteString{
                     (*cbptr).fetch_sub(2, Ordering::Relaxed);
                     panic!("reference count too high, you have a refrence leak");
                 }
-                MAByteString { long : ManuallyDrop::new(InnerLong { len : len, cap: self.long.cap, ptr: self.long.ptr, cbptr: AtomicPtr::new(cbptr) }) }
+                MAByteString::from_long( InnerLong { len : len, cap: self.long().cap, ptr: self.long().ptr, cbptr: AtomicPtr::new(cbptr) })
             }
         }
     }
@@ -540,12 +592,12 @@ impl Deref for MAByteString {
    #[inline]
    fn deref(&self) -> &[u8] {
         unsafe {
-            let mut len = self.long.len;
+            let mut len = self.long().len;
             let ptr = if len > isize::max as usize {
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
-                self.short.data.as_ptr()
+                self.short().data.as_ptr()
             } else {
-                self.long.ptr
+                self.long().ptr
             };
             slice::from_raw_parts(ptr,len)
         }
@@ -557,16 +609,16 @@ impl DerefMut for MAByteString {
    #[inline]
    fn deref_mut(&mut self) -> &mut [u8] {
         unsafe {
-            let mut len = self.long.len;
+            let mut len = self.long().len;
             let ptr = if len > isize::max as usize {  //inline string
                 len = (len >> ((size_of::<usize>() - 1) * 8)) - 0x80;
-                self.short.data.as_mut_ptr()
+                self.short_mut().data.as_mut_ptr()
             } else { 
-                self.long.deref_mut().make_unique(0,true);
+                self.long_mut().make_unique(0,true);
                 // if we get here we have unique owenership of the data
                 // either by being in unique mode, or by being in shared
                 // ownership mode but being the only owner.
-                self.long.ptr
+                self.long().ptr
             };
             slice::from_raw_parts_mut(ptr,len)
         }
@@ -588,9 +640,9 @@ impl AddAssign<&[u8]> for MAByteString {
             ptr::copy_nonoverlapping(other.as_ptr(), ptr.add(len), other.len());
             len += other.len();
             if short {
-                self.short.len = (len + 0x80) as u8;
+                self.short_mut().len = (len + 0x80) as u8;
             } else {
-                self.long.len = len;
+                self.long_mut().len = len;
             }
         }
     }
@@ -739,14 +791,12 @@ impl MAByteStringBuilder {
 
     pub fn from_mabs(mut s: MAByteString) -> Self {
         unsafe {
-            let len = s.long.len;
+            let len = s.long().len;
             if len > isize::max as usize {  //inline string
-                MAByteStringBuilder { short: s.short }
+                MAByteStringBuilder { short: s.into_short() }
             } else {
-                s.long.deref_mut().make_unique(0,false);
-                let inner = ptr::read(&mut s.long);
-                mem::forget(s);
-                MAByteStringBuilder { long: inner }
+                s.long_mut().make_unique(0,false);
+                MAByteStringBuilder { long: ManuallyDrop::new(s.into_long()) }
             }
         }
     }
@@ -1323,9 +1373,9 @@ impl AddAssign<&str> for MAStringBuilder {
 
 #[test]
 fn test_len_transmutation() {
-    let v = MAByteString { short: InnerShort { data: [0;SHORTLEN], len: 0x85 } };
+    let v = MAByteString::from_short(InnerShort { data: [0;SHORTLEN], len: 0x85 } );
     unsafe {
-        assert_eq!(v.long.len >> ((size_of::<usize>() - 1) * 8),0x85);
+        assert_eq!(v.long().len >> ((size_of::<usize>() - 1) * 8),0x85);
     }
 }
 

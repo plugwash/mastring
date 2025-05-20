@@ -444,4 +444,9 @@ fn test_debug() {
 
 }
 
+#[test]
+fn test_size() {
+    assert_eq!(mem::size_of::<MAByteString>(),mem::size_of::<usize>()*4);
+    assert_eq!(mem::size_of::<MAByteString>(),mem::size_of::<usize>()*4);
+}
 
