@@ -6,10 +6,10 @@ use core::mem::size_of;
 use core::mem;
 use core::mem::align_of;
 use core::ptr;
-use core::ops::Add;
 use core::slice;
 use core::cmp::max;
 use core::cmp::min;
+use crate::limitedusize::LimitedU8;
 use crate::limitedusize::LimitedUSize;
 
 extern crate alloc;
@@ -196,4 +196,9 @@ pub (super) struct InnerNiche {
     #[cfg(target_endian="little")]
     _len: LimitedUSize,
 }
+
+const _ : () = {
+   assert!((SHORTLEN + 0x80) <= LimitedU8::MAX);
+};
+
 

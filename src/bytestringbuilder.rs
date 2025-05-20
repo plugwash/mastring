@@ -1,6 +1,5 @@
 use core::sync::atomic::Ordering;
 use core::mem::size_of;
-use core::mem::ManuallyDrop;
 use core::mem;
 use core::ptr;
 use core::ops::Deref;
@@ -20,8 +19,8 @@ use crate::inner::InnerNiche;
 use crate::MAByteString;
 use crate::bytestring::bytes_debug;
 use crate::inner::SHORTLEN;
-use crate::limitedusize::LimitedUSize;
-use core::sync::atomic::AtomicUsize;
+
+#[cfg(all(miri,test))]
 use core::sync::atomic::AtomicPtr;
 
 #[repr(transparent)]
@@ -63,10 +62,10 @@ impl MAByteStringBuilder {
         unsafe { mem::transmute(short) }
     }
 
-    #[inline]
+    /*#[inline]
     pub (super) const fn into_long(self) -> InnerLong {
         unsafe { mem::transmute(self) }
-    }
+    }*/
 
     #[inline]
     pub (super) const fn into_short(self) -> InnerShort {
@@ -338,11 +337,6 @@ impl<const N: usize>  PartialEq<MAByteStringBuilder> for &[u8;N] {
     fn eq(&self, other : &MAByteStringBuilder) -> bool {
          return *self == other.deref();
     }
-}
-
-#[derive(Clone)]
-pub struct MAString {
-    inner: MAByteString,
 }
 
 #[cfg(test)]

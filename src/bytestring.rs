@@ -16,7 +16,6 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::str;
 use alloc::fmt;
-use crate::limitedusize::LimitedUSize;
 use crate::inner::InnerLong;
 use crate::inner::InnerShort;
 use crate::inner::InnerNiche;

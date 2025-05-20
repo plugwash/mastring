@@ -6,7 +6,7 @@ use core::mem;
 //a MAString on a system with pointers up to 16 bytes in size, I doubt a system
 //with pointers larger than this will ever exist.
 #[repr(u8)]
-enum LimitedU8 {
+pub (super) enum LimitedU8 {
     _0 = 0,_1 = 1,_2 = 2,_3 = 3,_4 = 4,_5 = 5,_6 = 6,_7 = 7,
     _8 = 8, _9 = 9,_10 = 10,_11 = 11,_12 = 12,_13 = 13,_14 = 14,_15 = 15,
     _16 = 16,_17 = 17,_18 = 18,_19 = 19,_20 = 20,_21 = 21,_22 = 22,_23 = 23,
@@ -34,9 +34,10 @@ enum LimitedU8 {
 }
 
 impl LimitedU8 {
-    const fn max() -> usize {
-        192
-    }
+    // for some reason rust thinks this is unused, possiblly because it is
+    // only used in a static assert.
+    #[allow(dead_code)]
+    pub (super) const MAX: usize = 191;
 }
 
 #[repr(C)]
