@@ -3,6 +3,8 @@ use mastring::MAByteString;
 use core::mem;
 use core::ops::Deref;
 use core::ops::DerefMut;
+use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[test]
 fn test_new() {
@@ -289,3 +291,30 @@ fn test_size() {
     assert_eq!(mem::size_of::<MAByteStringBuilder>(),mem::size_of::<usize>()*4);
 }
 
+#[test]
+fn test_sets() {
+    let mut h = HashSet::new();
+    h.insert(MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the lazy dog"));
+    h.insert(MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the smart dog"));
+    h.insert(MAByteStringBuilder::from_slice(b"foo"));
+    h.insert(MAByteStringBuilder::from_slice(b"bar"));
+    assert_eq!(h.contains(&MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains(b"foo" as &[u8]),true);
+    assert_eq!(h.contains(b"baz" as &[u8]),false);
+
+    let mut h = BTreeSet::new();
+    h.insert(MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the lazy dog"));
+    h.insert(MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the smart dog"));
+    h.insert(MAByteStringBuilder::from_slice(b"foo"));
+    h.insert(MAByteStringBuilder::from_slice(b"bar"));
+    assert_eq!(h.contains(&MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAByteStringBuilder::from_slice(b"The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains(b"foo" as &[u8]),true);
+    assert_eq!(h.contains(b"baz" as &[u8]),false);
+}
+
+#[test]
+fn test_comparision() {
+    assert!(MAByteStringBuilder::from_slice(b"A") < MAByteStringBuilder::from_slice(b"B"));
+}

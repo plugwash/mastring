@@ -8,6 +8,9 @@ use core::ops::Add;
 use core::ops::AddAssign;
 use core::slice;
 use core::cmp::max;
+use core::borrow::Borrow;
+use core::hash::Hasher;
+use core::hash::Hash;
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -336,6 +339,34 @@ impl<const N: usize> PartialEq<&[u8;N]> for MAByteStringBuilder {
 impl<const N: usize>  PartialEq<MAByteStringBuilder> for &[u8;N] {
     fn eq(&self, other : &MAByteStringBuilder) -> bool {
          return *self == other.deref();
+    }
+}
+
+impl Borrow<[u8]> for MAByteStringBuilder {
+    #[inline]
+    fn borrow(&self) -> &[u8] {
+        self.deref()
+    }
+}
+
+impl Hash for MAByteStringBuilder {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl PartialOrd for MAByteStringBuilder {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl Ord for MAByteStringBuilder {
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.deref().cmp(other.deref())
     }
 }
 
