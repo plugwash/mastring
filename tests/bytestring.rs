@@ -344,7 +344,7 @@ fn test_clone_and_drop() {
    assert_mode!(s,"cbinline (unique)");
    let s2 = s.clone();
    assert_mode!(s,"cbinline (shared)");
-   assert_eq!(s2.get_mode(),"cbinline (shared)");
+   assert_mode!(s2,"cbinline (shared)");
    drop(s2);
    assert_mode!(s,"cbinline (unique)");
 
