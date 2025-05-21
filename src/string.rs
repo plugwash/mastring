@@ -8,6 +8,10 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 use core::ops::Add;
 use core::ops::AddAssign;
+use core::borrow::Borrow;
+use core::hash::Hasher;
+use core::hash::Hash;
+
 use crate::MAByteString;
 use crate::MAStringBuilder;
 
@@ -189,6 +193,34 @@ impl Add<&str> for MAString {
 impl AddAssign<&str> for MAString {
     fn add_assign(&mut self, other: &str) {
         self.inner.add_assign(other.as_bytes());
+    }
+}
+
+impl Borrow<str> for MAString {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.deref()
+    }
+}
+
+impl Hash for MAString {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl PartialOrd for MAString {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl Ord for MAString {
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.deref().cmp(other.deref())
     }
 }
 

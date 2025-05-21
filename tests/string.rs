@@ -5,7 +5,9 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 use mastring::MAByteString;
 #[cfg(miri)]
-use std::sync::atomic::AtomicPtr;
+use core::sync::atomic::AtomicPtr;
+use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[cfg(test)]
 macro_rules! assert_mode {
@@ -492,4 +494,32 @@ fn test_from_utf8_lossy() {
 fn test_into_bytes() {
     let s = MAString::from_static("the quick brown fox jumped over the lazy dog");
     assert_eq!(s.into_bytes(),b"the quick brown fox jumped over the lazy dog");
+}
+
+#[test]
+fn test_sets() {
+    let mut h = HashSet::new();
+    h.insert(MAString::from_static("The quick brown fox jumped over the lazy dog"));
+    h.insert(MAString::from_slice("The quick brown fox jumped over the smart dog"));
+    h.insert(MAString::from_static("foo"));
+    h.insert(MAString::from_static("bar"));
+    assert_eq!(h.contains(&MAString::from_static("The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAString::from_static("The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains("foo"),true);
+    assert_eq!(h.contains("baz"),false);
+
+    let mut h = BTreeSet::new();
+    h.insert(MAString::from_static("The quick brown fox jumped over the lazy dog"));
+    h.insert(MAString::from_slice("The quick brown fox jumped over the smart dog"));
+    h.insert(MAString::from_static("foo"));
+    h.insert(MAString::from_static("bar"));
+    assert_eq!(h.contains(&MAString::from_static("The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAString::from_static("The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains("foo"),true);
+    assert_eq!(h.contains("baz"),false);
+}
+
+#[test]
+fn test_comparision() {
+    assert!(MAString::from_static("A") < MAString::from_static("B"));
 }

@@ -4,6 +4,8 @@ use mastring::MAString;
 use core::mem;
 use core::ops::Deref;
 use core::ops::DerefMut;
+use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[test]
 fn test_new() {
@@ -324,4 +326,32 @@ fn test_from_utf8_lossy() {
 fn test_into_bytes() {
     let s = MAStringBuilder::from_slice("the quick brown fox jumped over the lazy dog");
     assert_eq!(s.into_bytes(),b"the quick brown fox jumped over the lazy dog");
+}
+
+#[test]
+fn test_sets() {
+    let mut h = HashSet::new();
+    h.insert(MAStringBuilder::from_slice("The quick brown fox jumped over the lazy dog"));
+    h.insert(MAStringBuilder::from_slice("The quick brown fox jumped over the smart dog"));
+    h.insert(MAStringBuilder::from_slice("foo"));
+    h.insert(MAStringBuilder::from_slice("bar"));
+    assert_eq!(h.contains(&MAStringBuilder::from_slice("The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAStringBuilder::from_slice("The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains("foo"),true);
+    assert_eq!(h.contains("baz"),false);
+
+    let mut h = BTreeSet::new();
+    h.insert(MAStringBuilder::from_slice("The quick brown fox jumped over the lazy dog"));
+    h.insert(MAStringBuilder::from_slice("The quick brown fox jumped over the smart dog"));
+    h.insert(MAStringBuilder::from_slice("foo"));
+    h.insert(MAStringBuilder::from_slice("bar"));
+    assert_eq!(h.contains(&MAStringBuilder::from_slice("The quick brown fox jumped over the lazy dog")),true);
+    assert_eq!(h.contains(&MAStringBuilder::from_slice("The quick brown fox jumped over the stupid dog")),false);
+    assert_eq!(h.contains("foo"),true);
+    assert_eq!(h.contains("baz"),false);
+}
+
+#[test]
+fn test_comparision() {
+    assert!(MAStringBuilder::from_slice("A") < MAStringBuilder::from_slice("B"));
 }

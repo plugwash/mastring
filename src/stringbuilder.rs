@@ -9,6 +9,10 @@ use core::ops::Add;
 use core::ops::AddAssign;
 use crate::MAByteStringBuilder;
 use crate::MAString;
+use core::borrow::Borrow;
+use core::hash::Hasher;
+use core::hash::Hash;
+
 
 #[derive(Clone)]
 pub struct MAStringBuilder {
@@ -176,3 +180,32 @@ impl AddAssign<&str> for MAStringBuilder {
         self.inner.add_assign(other.as_bytes());
     }
 }
+ 
+impl Borrow<str> for MAStringBuilder {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self.deref()
+    }
+}
+
+impl Hash for MAStringBuilder {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl PartialOrd for MAStringBuilder {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.deref().partial_cmp(other.deref())
+    }
+}
+
+impl Ord for MAStringBuilder {
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.deref().cmp(other.deref())
+    }
+}
+
