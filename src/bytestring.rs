@@ -48,12 +48,12 @@ impl MAByteString {
     }
 
     #[inline]
-    pub (super) const unsafe fn long_mut(&mut self) -> &mut InnerLong {
+    pub (super) unsafe fn long_mut(&mut self) -> &mut InnerLong {
         unsafe { &mut *(self as *mut Self as *mut InnerLong ) }
     }
 
     #[inline]
-    pub (super) const unsafe fn short_mut(&mut self) -> &mut InnerShort {
+    pub (super) unsafe fn short_mut(&mut self) -> &mut InnerShort {
         unsafe { &mut *(self as *mut Self as *mut InnerShort ) }
     }
 

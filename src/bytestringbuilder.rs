@@ -46,12 +46,12 @@ impl MAByteStringBuilder {
     }
 
     #[inline]
-    const unsafe fn long_mut(&mut self) -> &mut InnerLong {
+    unsafe fn long_mut(&mut self) -> &mut InnerLong {
         unsafe { &mut *(self as *mut Self as *mut InnerLong ) }
     }
 
     #[inline]
-    const unsafe fn short_mut(&mut self) -> &mut InnerShort {
+    unsafe fn short_mut(&mut self) -> &mut InnerShort {
         unsafe { &mut *(self as *mut Self as *mut InnerShort ) }
     }
 
