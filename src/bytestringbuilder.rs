@@ -26,6 +26,7 @@ use crate::inner::SHORTLEN;
 #[cfg(all(miri,test))]
 use core::sync::atomic::AtomicPtr;
 
+#[allow(dead_code)]
 #[repr(transparent)]
 pub struct MAByteStringBuilder {
     inner: InnerNiche,

@@ -27,6 +27,7 @@ use crate::inner::SHORTLEN;
 
 
 ///
+#[allow(dead_code)]
 #[repr(transparent)]
 pub struct MAByteString {
     inner: InnerNiche,
