@@ -12,8 +12,7 @@ use std::collections::BTreeSet;
 #[cfg(test)]
 macro_rules! assert_mode {
     ($s:expr, $expectedmode:expr) => {
-        #[allow(unused_labels)] // the label is only used under miri.
-        'skipcheck: {
+        for _n in 1..=1 { // loop for break, since block labels are not supported in rust 1.63
             let mode = $s.get_mode();
             let expectedmode = $expectedmode;
             #[cfg(miri)]
@@ -21,9 +20,9 @@ macro_rules! assert_mode {
                 //miri sometimes gives us unaligned vecs, this can lead to
                 //control blocks not fitting inline. This should't break correctness, but
                 //it can result in strings being in a different mode from expected.
-                if (mode == "unique") && (expectedmode == "cbinline (unique)") { break 'skipcheck }
-                if (mode == "cbowned (unique)") && (expectedmode == "cbinline (unique)") { break 'skipcheck }
-                if (mode == "cbowned (shared)") && (expectedmode == "cbinline (shared)") { break 'skipcheck }
+                if (mode == "unique") && (expectedmode == "cbinline (unique)") { break }
+                if (mode == "cbowned (unique)") && (expectedmode == "cbinline (unique)") { break }
+                if (mode == "cbowned (shared)") && (expectedmode == "cbinline (shared)") { break }
             }
             assert_eq!(mode,expectedmode);
         }

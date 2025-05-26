@@ -142,7 +142,9 @@ impl InnerLong {
             return
         };
         mincap = max(mincap, cap * 2);
-        *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), allowcb,  mincap);
+        unsafe {
+            *self = Self::from_slice(slice::from_raw_parts(self.ptr, self.len), allowcb,  mincap);
+        }
     }
 
 }

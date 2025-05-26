@@ -60,6 +60,7 @@
 //! count.
 
 #![no_std]
+#![warn(unsafe_op_in_unsafe_fn)]
 
 mod limitedusize;
 mod inner;
