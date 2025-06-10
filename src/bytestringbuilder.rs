@@ -47,12 +47,12 @@ impl MAByteStringBuilder {
     }
 
     #[inline]
-    unsafe fn long_mut(&mut self) -> &mut InnerLong {
+    pub (super) unsafe fn long_mut(&mut self) -> &mut InnerLong {
         unsafe { &mut *(self as *mut Self as *mut InnerLong ) }
     }
 
     #[inline]
-    unsafe fn short_mut(&mut self) -> &mut InnerShort {
+    pub (super) unsafe fn short_mut(&mut self) -> &mut InnerShort {
         unsafe { &mut *(self as *mut Self as *mut InnerShort ) }
     }
 
@@ -516,7 +516,6 @@ impl From<&MAByteStringBuilder> for MAByteStringBuilder {
     }
 }
 
-
 /// Convenience macro to create a MAByteStringBuilder.
 ///
 /// The user may pass byte string literals, array expressions that are
@@ -524,9 +523,12 @@ impl From<&MAByteStringBuilder> for MAByteStringBuilder {
 /// Vec<u8>, MAByteStringBuilder, MAByteStringBuilder,  &[u8], &[u8;N], 
 /// &Vec<u8>, &MABytestring and &MAByteStringBuilder.
 ///
-/// Since MAByteStringBuilder does not support shared ownership, these
-/// will all allocate if the string is too long to represent as a short
-/// string.
+/// Since MAByteStringBuilder does not support shared or static ownership,
+/// most uses of this macro will result in memory allocation if the string
+/// cannot be represented as a short string. The exception is when
+/// converting from a Vec<u8>, a MAByteStringBuilder or a MAByteString
+/// that is in unique ownership mode. In these cases the existing
+/// allocation can be reused.
 ///
 /// Passing an array expression that is not a compile time constant will
 /// produce errors, to avoid this create a reference to the array.

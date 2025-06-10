@@ -359,16 +359,16 @@ pub const fn chars_to_bytes<const N: usize>(chars : &[char]) -> [u8;N] {
 /// Convenience macro to create a MAString.
 ///
 /// The user may pass byte string literals, array expressions that are
-/// compile time constants and have element type u8 or expressions of type
-/// Vec<u8>, MAString or MAByteStringBuilder these will be converted to
+/// compile time constants and have element type char or expressions of type
+/// String, MAString or MAByteStringBuilder these will be converted to
 /// MAString without the need to allocate.
 ///
-/// The user may also pass expression of types &[u8], &[u8;N], &Vec<u8>
+/// The user may also pass expression of types &str, &String
 /// and &MAStringBuilder. These will require allocation if the data cannot
 /// be stored as a "short string", unfortunately this includes values of type
-/// &'static [u8] and &'static [u8;N] as there is no way for either a macro or
-/// a generic to distinguish these from other &[u8] values. To efficently create
-/// a MAString from a &'static u8 use MAByteString::from_static instead.
+/// &'static str as there is no way for either a macro or  a generic to
+/// distinguish these from other &[u8] values. To efficently create
+/// a MAString from a &'static u8 use MAString::from_static instead.
 ///
 /// The user may also pass values of type &MAString, these will require
 /// memory allocation if the source MAString is in unique ownership mode
