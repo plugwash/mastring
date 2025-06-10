@@ -329,15 +329,28 @@ pub const fn chars_to_bytes<const N: usize>(chars : &[char]) -> [u8;N] {
     let mut i = 0;
     //unfortunately we can't use a for loop in a const fn.
     while i < chars.len() { 
-        let c = chars[i];
-        let charlen = c.len_utf8();
-        // we can't use slicing in a const fn, and to maintain our MSRV
-        // we can't use split_at_mut either, so we have to use from_raw_parts_mut
-        unsafe {
-            assert!(p + charlen <= result.len());
-            c.encode_utf8(slice::from_raw_parts_mut(&raw mut result[p], charlen));
+        // we can't use encode_utf8 in a const fn, and to maintain our MSRV
+        // so we have to do the encoding manually.
+        let c = chars[i] as usize;
+        if c < 0x80 {
+            result[p] = c as u8;
+            p += 1;
+        } else if c < 0x800 {
+            result[p] = ((c >> 6) + 0b11000000) as u8;
+            result[p+1] = ((c & 0b00111111) + 0b10000000) as u8;
+            p += 2;
+        } else if c < 0x10000 {
+            result[p] = ((c >> 12) + 0b11100000) as u8;
+            result[p+1] = (((c >> 6) & 0b00111111) + 0b10000000) as u8;
+            result[p+2] = ((c & 0b00111111) + 0b10000000) as u8;
+            p += 3;
+        } else {
+            result[p] = ((c >> 18) + 0b11110000) as u8;
+            result[p+1] = (((c >> 12) & 0b00111111) + 0b10000000) as u8;
+            result[p+2] = (((c >> 6) & 0b00111111) + 0b10000000) as u8;
+            result[p+3] = ((c & 0b00111111) + 0b10000000) as u8;
+            p += 4;
         }
-        p += charlen;
         i += 1;
     }
     result
@@ -368,10 +381,10 @@ macro_rules! mas {
         $crate::MAString::from_static($v)
     };
     ([$($b:expr),+]) => { {
-        const chars : &[char] = const { &[$($b),+] };
+        const chars : &[char] = &[$($b),+];
         const utf8len : usize = $crate::chars_utf8len(chars);
         const bytes : [u8;utf8len] = $crate::chars_to_bytes(chars);
-        $crate::MAString::from_static(unsafe { str::from_utf8_unchecked(&bytes) })
+        $crate::MAString::from_static(unsafe { core::str::from_utf8_unchecked(&bytes) })
     } };
     ($v:expr) => {
         $crate::MAString::from($v)

@@ -764,9 +764,12 @@ macro_rules! mabs {
     ($v:literal) => {
         $crate::MAByteString::from_static($v)
     };
-    ([$($b:expr),+]) => (
-        $crate::MAByteString::from_static(const { &[$($b),+] })
-    );
+    ([$($b:expr),+]) => {
+        $crate::MAByteString::from_static({
+            const arr: &[u8] = &[$($b),+];
+            arr
+        })
+    };
     ($v:expr) => {
         $crate::MAByteString::from($v)
     };
