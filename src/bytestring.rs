@@ -754,8 +754,8 @@ impl From<&MAByteString> for MAByteString {
 /// a generic to distinguish these from other &[u8] values. To efficently create
 /// a MAByteString from a &'static u8 use MAByteString::from_static instead.
 ///
-/// The user may also pass values of type &MAString, these will require
-/// memory allocation if the source MAString is in unique ownership mode
+/// The user may also pass values of type &MAByteString, these will require
+/// memory allocation if the source MAByteString is in unique ownership mode
 ///
 /// Passing an array expression that is not a compile time constant will
 /// produce errors, to avoid this create a reference to the array.
