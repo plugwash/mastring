@@ -7,6 +7,7 @@ use core::ops::DerefMut;
 use core::sync::atomic::AtomicPtr;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
+use mastring::mabs;
 
 #[cfg(test)]
 macro_rules! assert_mode {
@@ -477,4 +478,39 @@ fn test_sets() {
 #[test]
 fn test_comparision() {
     assert!(MAByteString::from_static(b"A") < MAByteString::from_static(b"B"));
+}
+
+#[test]
+fn test_macro() {
+    let s = mabs!(b"foo");
+    assert_mode!(s,"short");
+    let s = mabs!(b"The quick brown fox jumped over the smart dog");
+    assert_mode!(s,"static");
+    let s = mabs!([1,2,3,4]);
+    assert_mode!(s,"short");
+    let s = mabs!([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]);
+    assert_mode!(s,"static");
+    let foo = b"foo";
+    let s = mabs!(foo);
+    assert_mode!(s,"short");
+    let foo = b"The slow brown fox jumped over the sleeping dog";
+    let s = mabs!(foo);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mabs!(foo.to_vec());
+    assert_mode!(s,"unique");
+    let four = 4;
+    let s = mabs!(&[1,2,3,four]);
+    assert_mode!(s,"short");
+    let s = mabs!(&foo.to_vec());
+    assert_mode!(s,"cbinline (unique)");
+    let s = mabs!(s);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mabs!(&s);
+    assert_mode!(s,"cbinline (shared)");
+    let sb = MAByteStringBuilder::from_slice(b"The slow brown fox jumped over the sleeping dog");
+    let s = mabs!(&sb);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mabs!(sb);
+    assert_mode!(s,"cbinline (unique)");
+
 }

@@ -689,3 +689,85 @@ fn test_reserve_extra_internal() {
 
     
 }
+
+impl From<&[u8]> for MAByteString {
+    #[inline]
+    fn from(s : &[u8]) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl<const N: usize> From<&[u8;N]> for MAByteString {
+    #[inline]
+    fn from(s : &[u8;N]) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<Vec<u8>> for MAByteString {
+    #[inline]
+    fn from(s : Vec<u8>) -> Self {
+        Self::from_vec(s)
+    }
+}
+
+impl From<MAByteStringBuilder> for MAByteString {
+    #[inline]
+    fn from(s : MAByteStringBuilder) -> Self {
+        Self::from_builder(s)
+    }
+}
+
+impl From<&Vec<u8>> for MAByteString {
+    #[inline]
+    fn from(s : &Vec<u8>) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAByteStringBuilder> for MAByteString {
+    #[inline]
+    fn from(s : &MAByteStringBuilder) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAByteString> for MAByteString {
+    #[inline]
+    fn from(s : &MAByteString) -> Self {
+        s.clone()
+    }
+}
+
+
+/// Convenience macro to create a MAByteString.
+///
+/// The user may pass byte string literals, array expressions that are
+/// compile time constants and have element type u8 or expressions of type
+/// Vec<u8>, MAByteString or MAByteStringBuilder these will be converted to
+/// MAByteString without the need to allocate.
+///
+/// The user may also pass expression of types &[u8], &[u8;N], &Vec<u8>
+/// and &MAByteStringBuilder. These will require allocation if the data cannot
+/// be stored as a "short string", unfortunately this includes values of type
+/// &'static [u8] and &'static [u8;N] as there is no way for either a macro or
+/// a generic to distinguish these from other &[u8] values. To efficently create
+/// a MAByteString from a &'static u8 use MAByteString::from_static instead.
+///
+/// The user may also pass values of type &MAString, these will require
+/// memory allocation if the source MAString is in unique ownership mode
+///
+/// Passing an array expression that is not a compile time constant will
+/// produce errors, to avoid this create a reference to the array.
+#[macro_export]
+macro_rules! mabs {
+    ($v:literal) => {
+        $crate::MAByteString::from_static($v)
+    };
+    ([$($b:expr),+]) => (
+        $crate::MAByteString::from_static(const { &[$($b),+] })
+    );
+    ($v:expr) => {
+        $crate::MAByteString::from($v)
+    };
+}
