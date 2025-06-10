@@ -11,6 +11,7 @@ use core::ops::AddAssign;
 use core::borrow::Borrow;
 use core::hash::Hasher;
 use core::hash::Hash;
+use core::slice;
 
 use crate::MAByteString;
 use crate::MAStringBuilder;
@@ -129,6 +130,30 @@ impl MAString {
     pub fn into_bytes(self) -> MAByteString {
         self.inner
     }
+
+    // create a MAString from an array of chars, this will allocate if the result
+    // will not fit in a short string.
+    pub fn from_char_slice(chars: &[char]) -> MAString {
+        let mut len = 0;
+        for c in chars {
+            len += c.len_utf8();
+        }
+        let mut result = MAByteString::new();
+        unsafe {
+            let (mut ptr, _ , short) = result.reserve_extra_internal(len);
+            for c in chars {
+                let charlen = c.len_utf8();
+                c.encode_utf8(slice::from_raw_parts_mut(ptr,charlen));
+                ptr = ptr.add(charlen);
+            }
+            if short {
+                result.short_mut().len = (len + 0x80) as u8;
+            } else {
+                result.long_mut().len = len;
+            }
+        }
+        MAString { inner: result }
+    }
 }
 
 impl Deref for MAString {
@@ -224,3 +249,131 @@ impl Ord for MAString {
     }
 }
 
+impl From<&str> for MAString {
+    #[inline]
+    fn from(s : &str) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&[char]> for MAString {
+    #[inline]
+    fn from(s : &[char]) -> Self {
+        Self::from_char_slice(s)
+    }
+}
+
+impl<const N: usize> From<&[char; N]> for MAString {
+    #[inline]
+    fn from(s : &[char; N]) -> Self {
+        Self::from_char_slice(s)
+    }
+}
+
+impl From<String> for MAString {
+    #[inline]
+    fn from(s : String) -> Self {
+        Self::from_string(s)
+    }
+}
+
+impl From<MAStringBuilder> for MAString {
+    #[inline]
+    fn from(s : MAStringBuilder) -> Self {
+        Self::from_builder(s)
+    }
+}
+
+impl From<&String> for MAString {
+    #[inline]
+    fn from(s : &String) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAStringBuilder> for MAString {
+    #[inline]
+    fn from(s : &MAStringBuilder) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAString> for MAString {
+    #[inline]
+    fn from(s : &MAString) -> Self {
+        s.clone()
+    }
+}
+
+// helper functions for macro, not intended to be stable API
+
+#[doc(hidden)]
+pub const fn chars_utf8len(chars : &[char]) -> usize {
+    let mut len = 0;
+    let mut i = 0;
+    //unfortunately we can't use a for loop in a const fn.
+    while i < chars.len() { 
+        let c = chars[i];
+        len += c.len_utf8();
+        i += 1;
+    }
+    len
+}
+
+/// Fills a byte array from a char slice and returns it
+/// panics if the byte array is too small.
+#[doc(hidden)]
+pub const fn chars_to_bytes<const N: usize>(chars : &[char]) -> [u8;N] {
+    let mut p = 0;
+    let mut result = [0;N];
+    let mut i = 0;
+    //unfortunately we can't use a for loop in a const fn.
+    while i < chars.len() { 
+        let c = chars[i];
+        let charlen = c.len_utf8();
+        // we can't use slicing in a const fn, and to maintain our MSRV
+        // we can't use split_at_mut either, so we have to use from_raw_parts_mut
+        unsafe {
+            assert!(p + charlen <= result.len());
+            c.encode_utf8(slice::from_raw_parts_mut(&raw mut result[p], charlen));
+        }
+        p += charlen;
+        i += 1;
+    }
+    result
+}
+
+/// Convenience macro to create a MAString.
+///
+/// The user may pass byte string literals, array expressions that are
+/// compile time constants and have element type u8 or expressions of type
+/// Vec<u8>, MAString or MAByteStringBuilder these will be converted to
+/// MAString without the need to allocate.
+///
+/// The user may also pass expression of types &[u8], &[u8;N], &Vec<u8>
+/// and &MAStringBuilder. These will require allocation if the data cannot
+/// be stored as a "short string", unfortunately this includes values of type
+/// &'static [u8] and &'static [u8;N] as there is no way for either a macro or
+/// a generic to distinguish these from other &[u8] values. To efficently create
+/// a MAString from a &'static u8 use MAByteString::from_static instead.
+///
+/// The user may also pass values of type &MAString, these will require
+/// memory allocation if the source MAString is in unique ownership mode
+///
+/// Passing an array expression that is not a compile time constant will
+/// produce errors, to avoid this create a reference to the array.
+#[macro_export]
+macro_rules! mas {
+    ($v:literal) => {
+        $crate::MAString::from_static($v)
+    };
+    ([$($b:expr),+]) => { {
+        const chars : &[char] = const { &[$($b),+] };
+        const utf8len : usize = $crate::chars_utf8len(chars);
+        const bytes : [u8;utf8len] = $crate::chars_to_bytes(chars);
+        $crate::MAString::from_static(unsafe { str::from_utf8_unchecked(&bytes) })
+    } };
+    ($v:expr) => {
+        $crate::MAString::from($v)
+    };
+}

@@ -70,6 +70,12 @@ mod bytestringbuilder;
 pub use bytestringbuilder::MAByteStringBuilder;
 mod string;
 pub use string::MAString;
+#[doc(hidden)]
+pub use string::chars_utf8len;
+#[doc(hidden)]
+pub use string::chars_to_bytes;
+
+
 mod stringbuilder;
 pub use stringbuilder::MAStringBuilder;
 extern crate alloc;

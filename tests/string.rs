@@ -8,6 +8,7 @@ use mastring::MAByteString;
 use core::sync::atomic::AtomicPtr;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
+use mastring::mas;
 
 #[cfg(test)]
 macro_rules! assert_mode {
@@ -521,4 +522,41 @@ fn test_sets() {
 #[test]
 fn test_comparision() {
     assert!(MAString::from_static("A") < MAString::from_static("B"));
+}
+
+#[test]
+fn test_macro() {
+    let s = mas!("foo");
+    assert_mode!(s,"short");
+    let s = mas!("The quick brown fox jumped over the smart dog");
+    assert_mode!(s,"static");
+    let s = mas!(['1','2','3','4']);
+    assert_mode!(s,"short");
+    let s = mas!(['1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','\u{1f980}']);
+    assert_eq!(s,"12345678901234567890123456789012\u{1f980}");
+    assert_mode!(s,"static");
+    let foo = "foo";
+    let s = mas!(foo);
+    assert_mode!(s,"short");
+    let foo = "The slow brown fox jumped over the sleeping dog";
+    let s = mas!(foo);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mas!(foo.to_string());
+    assert_mode!(s,"unique");
+    let four = '4';
+    let s = mas!(&['1','2','3',four]);
+    assert_eq!(s,"1234");
+    assert_mode!(s,"short");
+    let s = mas!(&foo.to_string());
+    assert_mode!(s,"cbinline (unique)");
+    let s = mas!(s);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mas!(&s);
+    assert_mode!(s,"cbinline (shared)");
+    let sb = MAStringBuilder::from_slice("The slow brown fox jumped over the sleeping dog");
+    let s = mas!(&sb);
+    assert_mode!(s,"cbinline (unique)");
+    let s = mas!(sb);
+    assert_mode!(s,"cbinline (unique)");
+
 }

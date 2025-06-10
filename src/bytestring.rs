@@ -206,7 +206,7 @@ impl MAByteString {
     /// whether we are in short mode this saves duplicate
     /// work in the functions that need to reserve space and
     /// then use it.
-    fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
+    pub (super) fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
         unsafe {
             let mut len = self.long().len;
             let mincap;
