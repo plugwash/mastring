@@ -6,6 +6,7 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
+use mastring::masb;
 
 #[test]
 fn test_new() {
@@ -354,4 +355,41 @@ fn test_sets() {
 #[test]
 fn test_comparision() {
     assert!(MAStringBuilder::from_slice("A") < MAStringBuilder::from_slice("B"));
+}
+
+#[test]
+fn test_macro() {
+    let s = masb!("foo");
+    assert_eq!(s.get_mode(),"short");
+    let s = masb!("The quick brown fox jumped over the smart dog");
+    assert_eq!(s.get_mode(),"unique");
+    let s = masb!(['1','2','3','4']);
+    assert_eq!(s.get_mode(),"short");
+    let s = masb!(['1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','3','4','5','6','7','8','9','0','1','2','\u{03A9}','\u{2261}','\u{1f980}']);
+    assert_eq!(s,"12345678901234567890123456789012\u{03A9}\u{2261}\u{1f980}");
+    assert_eq!(s.get_mode(),"unique");
+    let foo = "foo";
+    let s = masb!(foo);
+    assert_eq!(s.get_mode(),"short");
+    let foo = "The slow brown fox jumped over the sleeping dog";
+    let s = masb!(foo);
+    assert_eq!(s.get_mode(),"unique");
+    let s = masb!(foo.to_string());
+    assert_eq!(s.get_mode(),"unique");
+    let four = '4';
+    let s = masb!(&['1','2','3',four]);
+    assert_eq!(s,"1234");
+    assert_eq!(s.get_mode(),"short");
+    let s = masb!(&foo.to_string());
+    assert_eq!(s.get_mode(),"unique");
+    let s = masb!(s);
+    assert_eq!(s.get_mode(),"unique");
+    let s = masb!(&s);
+    assert_eq!(s.get_mode(),"unique");
+    let sb = MAString::from_slice("The slow brown fox jumped over the sleeping dog");
+    let s = masb!(&sb);
+    assert_eq!(s.get_mode(),"unique");
+    let s = masb!(sb);
+    assert_eq!(s.get_mode(),"unique");
+
 }

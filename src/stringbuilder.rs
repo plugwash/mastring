@@ -12,6 +12,7 @@ use crate::MAString;
 use core::borrow::Borrow;
 use core::hash::Hasher;
 use core::hash::Hash;
+use core::slice;
 
 
 #[derive(Clone)]
@@ -113,6 +114,30 @@ impl MAStringBuilder {
         self.inner
     }
 
+
+    // create a MAStringBuilder from an array of chars, this will allocate if the result
+    // will not fit in a short stringbuilder.
+    pub fn from_char_slice(chars: &[char]) -> MAStringBuilder {
+        let mut len = 0;
+        for c in chars {
+            len += c.len_utf8();
+        }
+        let mut result = MAByteStringBuilder::new();
+        unsafe {
+            let (mut ptr, _ , short) = result.reserve_extra_internal(len);
+            for c in chars {
+                let charlen = c.len_utf8();
+                c.encode_utf8(slice::from_raw_parts_mut(ptr,charlen));
+                ptr = ptr.add(charlen);
+            }
+            if short {
+                result.short_mut().len = (len + 0x80) as u8;
+            } else {
+                result.long_mut().len = len;
+            }
+        }
+        MAStringBuilder { inner: result }
+    }
 }
 
 impl Deref for MAStringBuilder {
@@ -209,3 +234,90 @@ impl Ord for MAStringBuilder {
     }
 }
 
+impl From<&str> for MAStringBuilder {
+    #[inline]
+    fn from(s : &str) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&[char]> for MAStringBuilder {
+    #[inline]
+    fn from(s : &[char]) -> Self {
+        Self::from_char_slice(s)
+    }
+}
+
+impl<const N: usize> From<&[char; N]> for MAStringBuilder {
+    #[inline]
+    fn from(s : &[char; N]) -> Self {
+        Self::from_char_slice(s)
+    }
+}
+
+impl From<String> for MAStringBuilder {
+    #[inline]
+    fn from(s : String) -> Self {
+        Self::from_string(s)
+    }
+}
+
+impl From<MAString> for MAStringBuilder {
+    #[inline]
+    fn from(s : MAString) -> Self {
+        Self::from_mas(s)
+    }
+}
+
+impl From<&String> for MAStringBuilder {
+    #[inline]
+    fn from(s : &String) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAString> for MAStringBuilder {
+    #[inline]
+    fn from(s : &MAString) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAStringBuilder> for MAStringBuilder {
+    #[inline]
+    fn from(s : &MAStringBuilder) -> Self {
+        s.clone()
+    }
+}
+
+/// Convenience macro to create a MAStringBuilder.
+///
+/// The user may pass byte stringbuilder literals, array expressions that are
+/// compile time constants and have element type char, expressions of type
+/// StringBuilder, MAStringBuilder, MAByteString,  &str,  &StringBuilder,
+/// &String, &MAStringBuilder.
+///
+/// Since MAByteStringBuilder does not support shared or static ownership,
+/// most uses of this macro will result in memory allocation if the string
+/// cannot be represented as a short string. The exception is when
+/// converting from a String, a MAStringBuilder or a MAString
+/// that is in unique ownership mode. In these cases the existing
+/// allocation can be reused.
+///
+/// Passing an array expression that is not a compile time constant will
+/// produce errors, to avoid this create a reference to the array.
+#[macro_export]
+macro_rules! masb {
+    ($v:literal) => {
+        $crate::MAStringBuilder::from_slice($v)
+    };
+    ([$($b:expr),+]) => { {
+        const chars : &[char] = &[$($b),+];
+        const utf8len : usize = $crate::chars_utf8len(chars);
+        const bytes : [u8;utf8len] = $crate::chars_to_bytes(chars);
+        $crate::MAStringBuilder::from_slice(unsafe { core::str::from_utf8_unchecked(&bytes) })
+    } };
+    ($v:expr) => {
+        $crate::MAStringBuilder::from($v)
+    };
+}
