@@ -151,7 +151,7 @@ impl MAByteStringBuilder {
     /// whether we are in short mode this saves duplicate
     /// work in the functions that need to reserve space and
     /// then use it.
-    fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
+    pub (super) fn reserve_extra_internal(&mut self, extracap: usize) -> (*mut u8, usize, bool) {
         unsafe {
             let mut len = self.long().len;
             let mincap;
@@ -467,3 +467,81 @@ fn test_reserve_extra_internal() {
 
 }
 
+impl From<&[u8]> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : &[u8]) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl<const N: usize> From<&[u8;N]> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : &[u8;N]) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<Vec<u8>> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : Vec<u8>) -> Self {
+        Self::from_vec(s)
+    }
+}
+
+impl From<MAByteString> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : MAByteString) -> Self {
+        Self::from_mabs(s)
+    }
+}
+
+impl From<&Vec<u8>> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : &Vec<u8>) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAByteString> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : &MAByteString) -> Self {
+        Self::from_slice(s)
+    }
+}
+
+impl From<&MAByteStringBuilder> for MAByteStringBuilder {
+    #[inline]
+    fn from(s : &MAByteStringBuilder) -> Self {
+        s.clone()
+    }
+}
+
+
+/// Convenience macro to create a MAByteStringBuilder.
+///
+/// The user may pass byte string literals, array expressions that are
+/// compile time constants and have element type u8 or expressions of type
+/// Vec<u8>, MAByteStringBuilder, MAByteStringBuilder,  &[u8], &[u8;N], 
+/// &Vec<u8>, &MABytestring and &MAByteStringBuilder.
+///
+/// Since MAByteStringBuilder does not support shared ownership, these
+/// will all allocate if the string is too long to represent as a short
+/// string.
+///
+/// Passing an array expression that is not a compile time constant will
+/// produce errors, to avoid this create a reference to the array.
+#[macro_export]
+macro_rules! mabsb {
+    ($v:literal) => {
+        $crate::MAByteStringBuilder::from_slice($v)
+    };
+    ([$($b:expr),+]) => {
+        $crate::MAByteStringBuilder::from_slice({
+            const arr: &[u8] = &[$($b),+];
+            arr
+        })
+    };
+    ($v:expr) => {
+        $crate::MAByteStringBuilder::from($v)
+    };
+}

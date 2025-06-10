@@ -5,6 +5,7 @@ use core::ops::Deref;
 use core::ops::DerefMut;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
+use mastring::mabsb;
 
 #[test]
 fn test_new() {
@@ -317,4 +318,39 @@ fn test_sets() {
 #[test]
 fn test_comparision() {
     assert!(MAByteStringBuilder::from_slice(b"A") < MAByteStringBuilder::from_slice(b"B"));
+}
+
+#[test]
+fn test_macro() {
+    let s = mabsb!(b"foo");
+    assert_eq!(s.get_mode(),"short");
+    let s = mabsb!(b"The quick brown fox jumped over the smart dog");
+    assert_eq!(s.get_mode(),"unique");
+    let s = mabsb!([1,2,3,4]);
+    assert_eq!(s.get_mode(),"short");
+    let s = mabsb!([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]);
+    assert_eq!(s.get_mode(),"unique");
+    let foo = b"foo";
+    let s = mabsb!(foo);
+    assert_eq!(s.get_mode(),"short");
+    let foo = b"The slow brown fox jumped over the sleeping dog";
+    let s = mabsb!(foo);
+    assert_eq!(s.get_mode(),"unique");
+    let s = mabsb!(foo.to_vec());
+    assert_eq!(s.get_mode(),"unique");
+    let four = 4;
+    let s = mabsb!(&[1,2,3,four]);
+    assert_eq!(s.get_mode(),"short");
+    let s = mabsb!(&foo.to_vec());
+    assert_eq!(s.get_mode(),"unique");
+    let s = mabsb!(s);
+    assert_eq!(s.get_mode(),"unique");
+    let s = mabsb!(&s);
+    assert_eq!(s.get_mode(),"unique");
+    let sb = MAByteString::from_slice(b"The slow brown fox jumped over the sleeping dog");
+    let s = mabsb!(&sb);
+    assert_eq!(s.get_mode(),"unique");
+    let s = mabsb!(sb);
+    assert_eq!(s.get_mode(),"unique");
+
 }
