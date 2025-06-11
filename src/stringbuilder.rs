@@ -21,9 +21,14 @@ pub struct MAStringBuilder {
 }
 
 impl MAStringBuilder {
-    /// Creates a new MAString.
+    /// Creates a new MAStringBuilder.
     pub const fn new() -> Self {
         MAStringBuilder { inner: MAByteStringBuilder::new() }
+    }
+
+    /// Creates a new MAStringBuilder with a defined capacity
+    pub fn with_capacity(cap: usize) -> Self {
+        MAStringBuilder { inner: MAByteStringBuilder::with_capacity(cap) }
     }
 
     /// Creates a MAStringBuilder from a slice.
@@ -205,7 +210,14 @@ impl AddAssign<&str> for MAStringBuilder {
         self.inner.add_assign(other.as_bytes());
     }
 }
- 
+
+impl fmt::Write for MAStringBuilder {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        *self += s;
+        Ok(())
+    }
+}
+
 impl Borrow<str> for MAStringBuilder {
     #[inline]
     fn borrow(&self) -> &str {
@@ -287,6 +299,22 @@ impl From<&MAStringBuilder> for MAStringBuilder {
     #[inline]
     fn from(s : &MAStringBuilder) -> Self {
         s.clone()
+    }
+}
+
+impl FromIterator<char> for MAStringBuilder {
+    fn from_iter<I>(iter: I) -> MAStringBuilder
+    where
+        I : IntoIterator<Item = char>
+    {
+        let iter = iter.into_iter();
+
+        let mut result = MAStringBuilder::with_capacity(iter.size_hint().0);
+        let mut buf = [0u8;4];
+        for c in iter {
+            result += c.encode_utf8(&mut buf);
+        }
+        result
     }
 }
 

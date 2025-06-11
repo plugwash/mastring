@@ -27,6 +27,12 @@ impl MAString {
         MAString { inner: MAByteString::new() }
     }
 
+    /// Creates a new MAString with a defined capacity, the resulting
+    /// MAString will uniquely own it's buffer.
+    pub fn with_capacity(cap: usize) -> Self {
+        MAString { inner: MAByteString::with_capacity(cap) }
+    }
+
     /// Creates a MAString from a slice.
     /// This will allocate if the string cannot be stored as a short string,
     /// the resulting string will be in shared ownership mode with an inline
@@ -221,6 +227,13 @@ impl AddAssign<&str> for MAString {
     }
 }
 
+impl fmt::Write for MAString {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        *self += s;
+        Ok(())
+    }
+}
+
 impl Borrow<str> for MAString {
     #[inline]
     fn borrow(&self) -> &str {
@@ -302,6 +315,22 @@ impl From<&MAString> for MAString {
     #[inline]
     fn from(s : &MAString) -> Self {
         s.clone()
+    }
+}
+
+impl FromIterator<char> for MAString {
+    fn from_iter<I>(iter: I) -> MAString
+    where
+        I : IntoIterator<Item = char>
+    {
+        let iter = iter.into_iter();
+
+        let mut result = MAStringBuilder::with_capacity(iter.size_hint().0);
+        let mut buf = [0u8;4];
+        for c in iter {
+            result += c.encode_utf8(&mut buf);
+        }
+        Self::from_builder(result)
     }
 }
 

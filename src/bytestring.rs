@@ -84,6 +84,13 @@ impl MAByteString {
         Self::from_short( InnerShort { data: [0; SHORTLEN] , len: 0x80 } )
     }
 
+    /// Creates a new MAByteString with a defined capacity, the resulting
+    /// MAByteString will uniquely own it's buffer.
+    pub fn with_capacity(cap: usize) -> Self {
+        if cap <= SHORTLEN { return Self::new() }
+        Self::from_long(InnerLong::from_slice(b"",true,cap))
+    }
+
     /// Creates a MAByteString from a slice.
     /// This will allocate if the string cannot be stored as a short string,
     /// the resulting string will be in shared ownership mode with an inline
@@ -739,6 +746,20 @@ impl From<&MAByteString> for MAByteString {
     }
 }
 
+impl FromIterator<u8> for MAByteString {
+    fn from_iter<I>(iter: I) -> MAByteString
+    where
+        I : IntoIterator<Item = u8>
+    {
+        let iter = iter.into_iter();
+
+        let mut result = MAByteStringBuilder::with_capacity(iter.size_hint().0);
+        for c in iter {
+            result += &[c];
+        }
+        Self::from_builder(result)
+    }
+}
 
 /// Convenience macro to create a MAByteString.
 ///

@@ -82,6 +82,12 @@ impl MAByteStringBuilder {
         Self::from_short( InnerShort { data: [0; SHORTLEN] , len: 0x80 } )
     }
 
+    /// Creates a new MAByteString with a defined capacity
+    pub fn with_capacity(cap: usize) -> Self {
+        if cap <= SHORTLEN { return Self::new() }
+        Self::from_long(InnerLong::from_slice(b"",false,cap))
+    }
+
     /// Creates a MAByteStringBuilder from a slice.
     /// This will allocate if the string cannot be stored as a short string,
     pub fn from_slice(s: &[u8]) -> Self {
@@ -513,6 +519,21 @@ impl From<&MAByteStringBuilder> for MAByteStringBuilder {
     #[inline]
     fn from(s : &MAByteStringBuilder) -> Self {
         s.clone()
+    }
+}
+
+impl FromIterator<u8> for MAByteStringBuilder {
+    fn from_iter<I>(iter: I) -> MAByteStringBuilder
+    where
+        I : IntoIterator<Item = u8>
+    {
+        let iter = iter.into_iter();
+
+        let mut result = MAByteStringBuilder::with_capacity(iter.size_hint().0);
+        for c in iter {
+            result += &[c];
+        }
+        result
     }
 }
 
