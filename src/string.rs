@@ -105,12 +105,14 @@ impl MAString {
     }
 
     /// fills the string with UTF-8 data. SAFETY: It is UB to supply invalid UTF-8
-    pub unsafe fn from_utf8_unchecked(data: MAByteString) -> Self {
+    pub unsafe fn from_utf8_unchecked(data: impl Into<MAByteString>) -> Self {
+        let data = data.into();
         Self { inner: data }
     }
 
     /// fills the string with UTF-8 data, returning an error if it is invalid
-    pub fn from_utf8(data: MAByteString) -> Result<Self, FromUtf8Error> {
+    pub fn from_utf8(data: impl Into<MAByteString>) -> Result<Self, FromUtf8Error> {
+        let data = data.into();
         match str::from_utf8(&data) {
             Ok(..) => Ok( Self { inner: data } ),
             Err(..) => String::from_utf8(data.into_vec()).map(|_| unreachable!()),
@@ -118,7 +120,8 @@ impl MAString {
     }
 
     /// fills the string with UTF-8 data, returning an error if it is invalid
-    pub fn from_utf8_lossy(data: MAByteString) -> Self {
+    pub fn from_utf8_lossy(data: impl Into<MAByteString>) -> Self {
+        let data = data.into();
         match str::from_utf8(&data) {
             Ok(..) => Self { inner: data },
             Err(..) => Self::from_string(String::from_utf8_lossy(&data).into_owned()),

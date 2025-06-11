@@ -11,6 +11,7 @@
  * Implement FromIterator<u8> for MAByteString and MAByteStringBuilder
  * Implement FromIterator<char> for MAString and MAStringBuilder
  * Implement fmt::write for MAString and MAStringBuilder
+ * Relax parameter type for from_utf8* functions.
 
 ## [0.2.0] - 2023-05-25
 
