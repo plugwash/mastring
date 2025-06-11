@@ -163,6 +163,11 @@ impl MAString {
         }
         MAString { inner: result }
     }
+
+    // Appends a given slice to the end of this string.
+    pub fn push_str(&mut self, string: &str) {
+        *self += string;
+    }
 }
 
 impl Deref for MAString {
@@ -334,6 +339,16 @@ impl FromIterator<char> for MAString {
             result += c.encode_utf8(&mut buf);
         }
         Self::from_builder(result)
+    }
+}
+
+impl <T> AsRef<T> for MAString 
+where
+    str: AsRef<T>,
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
