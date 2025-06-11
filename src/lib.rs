@@ -74,7 +74,8 @@ pub use string::MAString;
 pub use string::chars_utf8len;
 #[doc(hidden)]
 pub use string::chars_to_bytes;
-
+mod customcow;
+pub use customcow::CustomCow;
 
 mod stringbuilder;
 pub use stringbuilder::MAStringBuilder;

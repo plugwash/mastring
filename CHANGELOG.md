@@ -12,6 +12,7 @@
  * Implement FromIterator<char> for MAString and MAStringBuilder
  * Implement fmt::write for MAString and MAStringBuilder
  * Relax parameter type for from_utf8* functions.
+ * Add CustomCow type
 
 ## [0.2.0] - 2023-05-25
 
