@@ -9,6 +9,8 @@ use core::sync::atomic::AtomicPtr;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
 use mastring::mas;
+use std::borrow::Cow;
+use mastring::CustomCow;
 
 #[cfg(test)]
 macro_rules! assert_mode {
@@ -558,5 +560,33 @@ fn test_macro() {
     assert_mode!(s,"cbinline (unique)");
     let s = mas!(sb);
     assert_mode!(s,"cbinline (unique)");
+
+}
+
+#[test]
+fn test_collect() {
+    let s: MAString = ['a','b','c','d'].iter().collect();
+    assert_eq!(s,"abcd");
+    let s: MAString = ['a','b','c','d','e','f','g'].into_iter().collect();
+    assert_eq!(s,"abcdefg");
+
+    let s: MAString = ["a","b","c","d","e","f","g","h","i","jay"].into_iter().collect();
+    assert_eq!(s,"abcdefghijay");
+
+    let s: MAString = ["a".to_string(),"b".to_string(),"c".to_string()].into_iter().collect();
+    assert_eq!(s,"abc");
+
+    let s: MAString = [Box::from("a"),Box::from("b"),Box::from("c")].into_iter().collect();
+    assert_eq!(s,"abc");
+
+    let s: MAString = [Cow::Borrowed("a"),Cow::Owned("b".to_string()),Cow::Borrowed("c")].into_iter().collect();
+    assert_eq!(s,"abc");
+
+    let s: MAString = [CustomCow::Borrowed("a"),CustomCow::Owned(mas!("b")),CustomCow::Borrowed("c")].into_iter().collect();
+    assert_eq!(s,"abc");
+
+    let s: MAString = [mas!("a"),mas!("b"),mas!("c")].into_iter().collect();
+    assert_eq!(s,"abc");
+
 
 }
