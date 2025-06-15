@@ -524,6 +524,16 @@ impl From<&MAByteStringBuilder> for MAByteStringBuilder {
     }
 }
 
+impl <T> AsMut<T> for MAByteStringBuilder
+where
+    [u8]: AsMut<T>,
+    T: ?Sized,
+{
+    fn as_mut(&mut self) -> &mut T {
+        self.deref_mut().as_mut()
+    }
+}
+
 impl <T> AsRef<T> for MAByteStringBuilder
 where
     [u8]: AsRef<T>,
@@ -531,6 +541,13 @@ where
 {
     fn as_ref(&self) -> &T {
         self.deref().as_ref()
+    }
+}
+
+impl Default for MAByteStringBuilder {
+    #[inline]
+    fn default() -> MAByteStringBuilder {
+        Self::new()
     }
 }
 

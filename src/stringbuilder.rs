@@ -17,7 +17,7 @@ use core::slice;
 
 #[derive(Clone)]
 pub struct MAStringBuilder {
-    inner: MAByteStringBuilder,
+    pub (super) inner: MAByteStringBuilder,
 }
 
 impl MAStringBuilder {
@@ -310,6 +310,16 @@ impl From<&MAStringBuilder> for MAStringBuilder {
     }
 }
 
+impl <T> AsMut<T> for MAStringBuilder
+where
+    str: AsMut<T>,
+    T: ?Sized,
+{
+    fn as_mut(&mut self) -> &mut T {
+        self.deref_mut().as_mut()
+    }
+}
+
 impl <T> AsRef<T> for MAStringBuilder
 where
     str: AsRef<T>,
@@ -317,6 +327,13 @@ where
 {
     fn as_ref(&self) -> &T {
         self.deref().as_ref()
+    }
+}
+
+impl Default for MAStringBuilder {
+    #[inline]
+    fn default() -> MAStringBuilder {
+        Self::new()
     }
 }
 

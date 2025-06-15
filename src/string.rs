@@ -18,7 +18,7 @@ use crate::MAStringBuilder;
 
 #[derive(Clone)]
 pub struct MAString {
-    inner: MAByteString,
+    pub (super) inner: MAByteString,
 }
 
 impl MAString {
@@ -326,6 +326,16 @@ impl From<&MAString> for MAString {
     }
 }
 
+impl <T> AsMut<T> for MAString 
+where
+    str: AsMut<T>,
+    T: ?Sized,
+{
+    fn as_mut(&mut self) -> &mut T {
+        self.deref_mut().as_mut()
+    }
+}
+
 impl <T> AsRef<T> for MAString 
 where
     str: AsRef<T>,
@@ -335,6 +345,15 @@ where
         self.deref().as_ref()
     }
 }
+
+impl Default for MAString {
+    #[inline]
+    fn default() -> MAString {
+        Self::new()
+    }
+}
+
+
 
 // helper functions for macro, not intended to be stable API
 

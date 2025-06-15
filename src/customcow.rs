@@ -85,6 +85,25 @@ impl<T: Deref> PartialEq for CustomCow<'_, T> where <T as Deref>::Target: Partia
     }
 }
 
+impl<T: Deref + Default> Default for CustomCow<'_, T>
+{
+    #[inline]
+    fn default() -> Self {
+        Self::Owned(Default::default())
+    }
+}
+
+impl <T: Deref,U> AsRef<U> for CustomCow<'_, T>
+where
+    <T as Deref>::Target: AsRef<U>,
+    U: ?Sized,
+{
+    fn as_ref(&self) -> &U {
+        self.deref().as_ref()
+    }
+}
+
+
 // it would be nice to define these using generics, but we rapidly end up
 // running into conflicting implementations and coherence rules.
 macro_rules! define_customcow_eq {
