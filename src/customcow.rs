@@ -5,6 +5,9 @@ use core::fmt::Display;
 /// CustomCow is similar to alloc::borrow::cow but works the opposite
 /// way round, rather than having the "borrowed" type as a type
 /// parameter it has the owned type as a type parameter.
+///
+/// CustomCow can be used with any type that implements Deref, however
+/// Some trait implementations are limited to the tyeps in this crate.
 pub enum CustomCow<'a, T: Deref> {
     Borrowed(&'a <T as Deref>::Target),
     Owned(T),
@@ -39,6 +42,17 @@ where
             Self::Owned(o) => { o },
         }
     }
+
+    pub fn to_mut(&mut self) -> &mut T {
+        match self {
+            Self::Borrowed(b) => { *self = Self::Owned((*b).into()) },
+            Self::Owned(_) => { /* we are already in the owned state */ },
+        }
+        match self {
+            Self::Borrowed(_) => { unreachable!{} },
+            Self::Owned(o) => { o },
+        }
+    }
 }
 
 impl<T: Deref + Clone> CustomCow<'_, T>
@@ -62,4 +76,40 @@ impl<T: Deref + Clone> Clone for CustomCow<'_, T>
         }
     }
 }
+
+impl<T: Deref> PartialEq for CustomCow<'_, T> where <T as Deref>::Target: PartialEq
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+
+// it would be nice to define these using generics, but we rapidly end up
+// running into conflicting implementations and coherence rules.
+macro_rules! define_customcow_eq {
+    ($owned: ty, $borrowed:ty) => {
+        impl PartialEq<$owned> for crate::CustomCow<'_, $owned> {
+            fn eq(&self, other: & $owned) -> bool {
+                self.deref() == other.deref()
+            }
+        }
+        impl PartialEq<$borrowed> for crate::CustomCow<'_, $owned> {
+            fn eq(&self, other: & $borrowed) -> bool {
+                self.deref() == other
+            }
+        }
+        impl PartialEq<crate::CustomCow<'_, $owned>> for $owned {
+            fn eq(&self, other: & crate::CustomCow<$owned>) -> bool {
+                self.deref() == other.deref()
+            }
+        }
+        impl PartialEq<crate::CustomCow<'_, $owned>> for $borrowed {
+            fn eq(&self, other: & crate::CustomCow<$owned>) -> bool {
+                self == other.deref()
+            }
+        }
+    }
+}
+pub (crate) use define_customcow_eq;
 

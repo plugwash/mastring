@@ -437,3 +437,5 @@ macro_rules! mas {
         $crate::MAString::from($v)
     };
 }
+
+crate::customcow::define_customcow_eq!(MAString,str);
