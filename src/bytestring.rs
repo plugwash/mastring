@@ -790,19 +790,20 @@ impl Default for MAByteString {
 /// Convenience macro to create a MAByteString.
 ///
 /// The user may pass byte string literals, array expressions that are
-/// compile time constants and have element type u8 or expressions of type
-/// Vec<u8>, MAByteString or MAByteStringBuilder these will be converted to
-/// MAByteString without the need to allocate.
+/// compile time constants and have element type `u8` or expressions of type
+/// `Vec<u8>`, `MAByteString` or `MAByteStringBuilder` these will be converted
+/// to `MAByteString` without the need to allocate.
 ///
-/// The user may also pass expression of types &[u8], &[u8;N], &Vec<u8>
-/// and &MAByteStringBuilder. These will require allocation if the data cannot
+/// The user may also pass expression of types `&[u8]`, `&[u8;N]`, `&Vec<u8>`
+/// and `&MAByteStringBuilder`. These will require allocation if the data cannot
 /// be stored as a "short string", unfortunately this includes values of type
-/// &'static [u8] and &'static [u8;N] as there is no way for either a macro or
-/// a generic to distinguish these from other &[u8] values. To efficently create
-/// a MAByteString from a &'static u8 use MAByteString::from_static instead.
+/// `&'static [u8]` and `&'static [u8;N]` as there is no way for either a macro
+/// or a generic to distinguish these from other `&[u8]` values. To efficently
+/// create a `MAByteString` from a `&'static u8` use `MAByteString::from_static`
+/// instead.
 ///
-/// The user may also pass values of type &MAByteString, these will require
-/// memory allocation if the source MAByteString is in unique ownership mode
+/// The user may also pass values of type `&MAByteString`, these will require
+/// memory allocation if the source `MAByteString` is in unique ownership mode
 ///
 /// Passing an array expression that is not a compile time constant will
 /// produce errors, to avoid this create a reference to the array.

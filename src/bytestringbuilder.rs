@@ -560,17 +560,17 @@ impl Default for MAByteStringBuilder {
     }
 }
 
-/// Convenience macro to create a MAByteStringBuilder.
+/// Convenience macro to create a `MAByteStringBuilder`.
 ///
 /// The user may pass byte string literals, array expressions that are
-/// compile time constants and have element type u8 or expressions of type
-/// Vec<u8>, MAByteStringBuilder, MAByteStringBuilder,  &[u8], &[u8;N], 
-/// &Vec<u8>, &MABytestring and &MAByteStringBuilder.
+/// compile time constants and have element type `u8` or expressions of type
+/// `Vec<u8>`, `MAByteStringBuilder`, `MAByteStringBuilder`, `&[u8]`, `&[u8;N]`,
+/// `&Vec<u8>`, `&MABytestring` and `&MAByteStringBuilder`.
 ///
-/// Since MAByteStringBuilder does not support shared or static ownership,
+/// Since `MAByteStringBuilder` does not support shared or static ownership,
 /// most uses of this macro will result in memory allocation if the string
 /// cannot be represented as a short string. The exception is when
-/// converting from a Vec<u8>, a MAByteStringBuilder or a MAByteString
+/// converting from a `Vec<u8>`, a `MAByteStringBuilder` or a `MAByteString`
 /// that is in unique ownership mode. In these cases the existing
 /// allocation can be reused.
 ///
