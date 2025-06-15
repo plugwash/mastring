@@ -234,8 +234,10 @@ impl MAByteStringBuilder {
         }
     }
 
-    
-
+    // Appends a given slice to the end of this bytestringbuilder.
+    pub fn push_slice(&mut self, bytestringbuilder: &[u8]) {
+        *self += bytestringbuilder;
+    }
 }
 
 impl Drop for MAByteStringBuilder {
@@ -519,6 +521,16 @@ impl From<&MAByteStringBuilder> for MAByteStringBuilder {
     #[inline]
     fn from(s : &MAByteStringBuilder) -> Self {
         s.clone()
+    }
+}
+
+impl <T> AsRef<T> for MAByteStringBuilder
+where
+    [u8]: AsRef<T>,
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 

@@ -146,6 +146,11 @@ impl MAStringBuilder {
         }
         MAStringBuilder { inner: result }
     }
+
+    // Appends a given slice to the end of this stringbuilder.
+    pub fn push_str(&mut self, stringbuilder: &str) {
+        *self += stringbuilder;
+    }
 }
 
 impl Deref for MAStringBuilder {
@@ -302,6 +307,16 @@ impl From<&MAStringBuilder> for MAStringBuilder {
     #[inline]
     fn from(s : &MAStringBuilder) -> Self {
         s.clone()
+    }
+}
+
+impl <T> AsRef<T> for MAStringBuilder
+where
+    str: AsRef<T>,
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 

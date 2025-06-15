@@ -318,6 +318,11 @@ impl MAByteString {
             return Vec::from_raw_parts(ptr,len,cap);
         }
     }
+
+    // Appends a given slice to the end of this bytestring.
+    pub fn push_slice(&mut self, bytestring: &[u8]) {
+        *self += bytestring;
+    }
 }
 
 impl Drop for MAByteString {
@@ -743,6 +748,16 @@ impl From<&MAByteString> for MAByteString {
     #[inline]
     fn from(s : &MAByteString) -> Self {
         s.clone()
+    }
+}
+
+impl <T> AsRef<T> for MAByteString
+where
+    [u8]: AsRef<T>,
+    T: ?Sized,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
