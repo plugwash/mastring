@@ -81,4 +81,8 @@ mod stringbuilder;
 pub use stringbuilder::MAStringBuilder;
 extern crate alloc;
 
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;
+
 
