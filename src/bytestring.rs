@@ -323,6 +323,15 @@ impl MAByteString {
     pub fn push_slice(&mut self, bytestring: &[u8]) {
         *self += bytestring;
     }
+
+    // Joins together an iterator of strings, using self as a seperator.
+    pub fn join<T,I>(&self, iter : I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: crate::join::Joinable<[u8]>,
+    {
+        Self::from_builder(crate::join::join_internal::<MAByteStringBuilder,T,I>(self,iter))
+    }
 }
 
 impl Drop for MAByteString {

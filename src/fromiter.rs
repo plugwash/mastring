@@ -81,7 +81,7 @@ macro_rules! impl_fromiter_charlike {
 
 const ITERBLOCKLEN:usize = 8;
 
-trait Reserve {
+pub (super) trait Reserve {
     fn reserve(&mut self, cap: usize);
 }
 

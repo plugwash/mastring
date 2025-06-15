@@ -56,6 +56,10 @@ mabs! creates a MAByteString, masb creates a MAStringBuilder and MAByteString.
 MAStrings can also be created through the From/Into traits and through specific
 factory functions.
 
+The string joining functionality in the rust standard library is limited to
+single character joiners and is not available to custom string types, so
+this crate instead takes a python-like approach to String joining.
+
 Usage example.
 
 ```rust
@@ -74,6 +78,9 @@ fn main() {
 
     let collected: MAString = ["a","beta","c","d"].into_iter().collect();
     println!("{}",collected);
+
+    let joined = mas!(",").join(['a','beta','c','d']);
+    println!("{}",joined);
 
 }
 ```

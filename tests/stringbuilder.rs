@@ -393,3 +393,9 @@ fn test_macro() {
     assert_eq!(s.get_mode(),"unique");
 
 }
+
+#[test]
+fn test_join() {
+    let s = masb!(",").join(["1","2","3","4","5","6","7","8","9","0"]);
+    assert_eq!(s,"1,2,3,4,5,6,7,8,9,0");
+}

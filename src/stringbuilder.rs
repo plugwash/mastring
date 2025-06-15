@@ -15,6 +15,7 @@ use core::hash::Hash;
 use core::slice;
 use core::convert::Infallible;
 use core::str::FromStr;
+use crate::join;
 
 #[derive(Clone)]
 pub struct MAStringBuilder {
@@ -151,6 +152,15 @@ impl MAStringBuilder {
     // Appends a given slice to the end of this stringbuilder.
     pub fn push_str(&mut self, stringbuilder: &str) {
         *self += stringbuilder;
+    }
+
+    // Joins together an iterator of strings, using self as a seperator.
+    pub fn join<T,I>(&self, iter : I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: Default + join::Joinable<str>,
+    {
+        crate::join::join_internal::<MAStringBuilder,T,I>(self,iter)
     }
 }
 

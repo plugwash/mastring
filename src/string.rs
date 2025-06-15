@@ -17,6 +17,7 @@ use core::str::FromStr;
 
 use crate::MAByteString;
 use crate::MAStringBuilder;
+use crate::join;
 
 #[derive(Clone)]
 pub struct MAString {
@@ -169,6 +170,15 @@ impl MAString {
     // Appends a given slice to the end of this string.
     pub fn push_str(&mut self, string: &str) {
         *self += string;
+    }
+
+    // Joins together an iterator of strings, using self as a seperator.
+    pub fn join<T,I>(&self, iter : I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: join::Joinable<str>,
+    {
+        Self::from_builder(crate::join::join_internal::<MAStringBuilder,T,I>(self,iter))
     }
 }
 
