@@ -13,7 +13,8 @@ use core::borrow::Borrow;
 use core::hash::Hasher;
 use core::hash::Hash;
 use core::slice;
-
+use core::convert::Infallible;
+use core::str::FromStr;
 
 #[derive(Clone)]
 pub struct MAStringBuilder {
@@ -334,6 +335,14 @@ impl Default for MAStringBuilder {
     #[inline]
     fn default() -> MAStringBuilder {
         Self::new()
+    }
+}
+
+impl FromStr for MAStringBuilder {
+    type Err = Infallible;
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Infallible> {
+        Ok(Self::from_slice(s))
     }
 }
 

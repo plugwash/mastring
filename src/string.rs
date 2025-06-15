@@ -12,6 +12,8 @@ use core::borrow::Borrow;
 use core::hash::Hasher;
 use core::hash::Hash;
 use core::slice;
+use core::convert::Infallible;
+use core::str::FromStr;
 
 use crate::MAByteString;
 use crate::MAStringBuilder;
@@ -404,6 +406,14 @@ pub const fn chars_to_bytes<const N: usize>(chars : &[char]) -> [u8;N] {
         i += 1;
     }
     result
+}
+
+impl FromStr for MAString {
+    type Err = Infallible;
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Infallible> {
+        Ok(Self::from_slice(s))
+    }
 }
 
 /// Convenience macro to create a MAString.
