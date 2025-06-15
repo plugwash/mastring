@@ -305,22 +305,6 @@ impl From<&MAStringBuilder> for MAStringBuilder {
     }
 }
 
-impl FromIterator<char> for MAStringBuilder {
-    fn from_iter<I>(iter: I) -> MAStringBuilder
-    where
-        I : IntoIterator<Item = char>
-    {
-        let iter = iter.into_iter();
-
-        let mut result = MAStringBuilder::with_capacity(iter.size_hint().0);
-        let mut buf = [0u8;4];
-        for c in iter {
-            result += c.encode_utf8(&mut buf);
-        }
-        result
-    }
-}
-
 /// Convenience macro to create a MAStringBuilder.
 ///
 /// The user may pass byte stringbuilder literals, array expressions that are

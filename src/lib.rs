@@ -85,4 +85,5 @@ extern crate alloc;
 #[cfg(doctest)]
 pub struct ReadmeDoctests;
 
+mod fromiter;
 

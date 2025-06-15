@@ -8,6 +8,8 @@ use core::sync::atomic::AtomicPtr;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
 use mastring::mabs;
+use mastring::CustomCow;
+use std::borrow::Cow;
 
 #[cfg(test)]
 macro_rules! assert_mode {
@@ -512,5 +514,34 @@ fn test_macro() {
     assert_mode!(s,"cbinline (unique)");
     let s = mabs!(sb);
     assert_mode!(s,"cbinline (unique)");
+
+}
+
+#[test]
+fn test_collect() {
+    let s: MAByteString = [b'a',b'b',b'c',b'd'].iter().collect();
+    assert_eq!(s,b"abcd");
+    let s: MAByteString = [b'a',b'b',b'c',b'd',b'e',b'f',b'g'].into_iter().collect();
+    assert_eq!(s,b"abcdefg");
+
+    let a: [&[u8];10] = [b"a",b"b",b"c",b"d",b"e",b"f",b"g",b"h",b"i",b"jay"];
+    let s: MAByteString = a.into_iter().collect();
+    assert_eq!(s,b"abcdefghijay");
+
+    let s: MAByteString = [b"a".to_vec(),b"b".to_vec(),b"c".to_vec()].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteString = [Box::from(b"a" as &[u8]),Box::from(b"b" as &[u8]),Box::from(b"c" as &[u8])].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteString = [Cow::Borrowed(b"a" as &[u8]),Cow::Owned(b"b".to_vec()),Cow::Borrowed(b"c")].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteString = [CustomCow::Owned(mabs!(b"a")),CustomCow::Owned(mabs!(b"b")),CustomCow::Borrowed(b"c" as &[u8])].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteString = [mabs!(b"a"),mabs!(b"b"),mabs!(b"c")].into_iter().collect();
+    assert_eq!(s,b"abc");
+
 
 }

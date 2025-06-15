@@ -3,8 +3,6 @@ use alloc::string::String;
 use alloc::string::FromUtf8Error;
 use alloc::fmt;
 use alloc::vec::Vec;
-use alloc::borrow::Cow;
-use alloc::boxed::Box;
 
 use core::ops::Deref;
 use core::ops::DerefMut;
@@ -17,7 +15,6 @@ use core::slice;
 
 use crate::MAByteString;
 use crate::MAStringBuilder;
-use crate::CustomCow;
 
 #[derive(Clone)]
 pub struct MAString {
@@ -328,84 +325,6 @@ impl From<&MAString> for MAString {
         s.clone()
     }
 }
-
-macro_rules! impl_fromiter_charlike {
-    ($t:ty) => {
-        impl<'a> FromIterator<$t> for MAString {
-            fn from_iter<I>(iter: I) -> MAString
-            where
-                I : IntoIterator<Item = $t>
-            {
-                let iter = iter.into_iter();
-
-                let mut result = MAStringBuilder::with_capacity(iter.size_hint().0);
-                let mut buf = [0u8;4];
-                for c in iter {
-                    result += c.encode_utf8(&mut buf);
-                }
-                Self::from_builder(result)
-            }
-        }
-    }
-}
-
-impl_fromiter_charlike!(char);
-impl_fromiter_charlike!(&'a char);
-
-const ITERBLOCKLEN:usize = 8;
-
-//it would be nice to use generics here, but unfortunately it causes
-//conflicting implementation errors with the implementations for char
-//the type to be implemented must be passed twice, once with any nessacery
-//lifetime parameters set to 'a and once without any lifetime parameters.
-macro_rules! impl_fromiter_stringlike {
-    ($t:ty,$tplain:ty) => {
-        impl<'a> FromIterator<$t> for MAString
-        {
-            fn from_iter<I>(iter: I) -> MAString
-            where
-                I : IntoIterator<Item = $t>
-            {
-                let mut iter = iter.into_iter();
-                const NONE : Option<$tplain> = None;
-                let mut block = [NONE;ITERBLOCKLEN];
-                let mut result = MAStringBuilder::new();
-                let mut i = 0;
-                let mut resultlen = 0;
-                loop {
-                    block[i] = iter.next();
-                    if block[i].is_some() && i < ITERBLOCKLEN-1 {
-                        i = i + 1;
-                    } else {
-                        let (blocklen,end) = if block[i].is_some() {
-                            (i + 1, false)
-                        } else {
-                            (i, true)
-                        };
-                        let block = &block[0..blocklen];
-                        for item in block {
-                            resultlen += item.as_ref().unwrap().len();
-                        }
-                        result.reserve(resultlen);
-                        for item in block {
-                            result += item.as_ref().unwrap();
-                        }
-                        if end { break }
-                        i = 0;
-                    }
-                }
-                Self::from_builder(result)
-            }
-        }
-    }
-}
-
-impl_fromiter_stringlike!(&'a str,&str);
-impl_fromiter_stringlike!(String,String);
-impl_fromiter_stringlike!(Box<str>,Box<str>);
-impl_fromiter_stringlike!(Cow<'a,str>,Cow<'_,str>);
-impl_fromiter_stringlike!(CustomCow<'a,MAString>,CustomCow<'_,MAString>);
-impl_fromiter_stringlike!(MAString,MAString);
 
 impl <T> AsRef<T> for MAString 
 where

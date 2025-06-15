@@ -6,6 +6,8 @@ use core::ops::DerefMut;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
 use mastring::mabsb;
+use mastring::CustomCow;
+use std::borrow::Cow;
 
 #[test]
 fn test_new() {
@@ -352,5 +354,34 @@ fn test_macro() {
     assert_eq!(s.get_mode(),"unique");
     let s = mabsb!(sb);
     assert_eq!(s.get_mode(),"unique");
+
+}
+
+#[test]
+fn test_collect() {
+    let s: MAByteStringBuilder = [b'a',b'b',b'c',b'd'].iter().collect();
+    assert_eq!(s,b"abcd");
+    let s: MAByteString = [b'a',b'b',b'c',b'd',b'e',b'f',b'g'].into_iter().collect();
+    assert_eq!(s,b"abcdefg");
+
+    let a: [&[u8];10] = [b"a",b"b",b"c",b"d",b"e",b"f",b"g",b"h",b"i",b"jay"];
+    let s: MAByteStringBuilder = a.into_iter().collect();
+    assert_eq!(s,b"abcdefghijay");
+
+    let s: MAByteStringBuilder = [b"a".to_vec(),b"b".to_vec(),b"c".to_vec()].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteStringBuilder = [Box::from(b"a" as &[u8]),Box::from(b"b" as &[u8]),Box::from(b"c" as &[u8])].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteStringBuilder = [Cow::Borrowed(b"a" as &[u8]),Cow::Owned(b"b".to_vec()),Cow::Borrowed(b"c")].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteStringBuilder = [CustomCow::Owned(mabsb!(b"a")),CustomCow::Owned(mabsb!(b"b")),CustomCow::Borrowed(b"c" as &[u8])].into_iter().collect();
+    assert_eq!(s,b"abc");
+
+    let s: MAByteStringBuilder = [mabsb!(b"a"),mabsb!(b"b"),mabsb!(b"c")].into_iter().collect();
+    assert_eq!(s,b"abc");
+
 
 }

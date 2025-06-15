@@ -746,21 +746,6 @@ impl From<&MAByteString> for MAByteString {
     }
 }
 
-impl FromIterator<u8> for MAByteString {
-    fn from_iter<I>(iter: I) -> MAByteString
-    where
-        I : IntoIterator<Item = u8>
-    {
-        let iter = iter.into_iter();
-
-        let mut result = MAByteStringBuilder::with_capacity(iter.size_hint().0);
-        for c in iter {
-            result += &[c];
-        }
-        Self::from_builder(result)
-    }
-}
-
 /// Convenience macro to create a MAByteString.
 ///
 /// The user may pass byte string literals, array expressions that are
